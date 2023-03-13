@@ -55,4 +55,3 @@ def paint(q_paint, config):
             break
 
     cv2.destroyAllWindows()
-    print('a')

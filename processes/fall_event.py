@@ -117,6 +117,8 @@ def send_preprocessing(q_print, config):
     real_video_sequence = collections.deque(maxlen=300)
     video_stream_writing = None
     video_stream_path = f'person_stream.mp4'
+    video_dir = f''
+    frame_number = 0
     while True:
         data = q_print.get()
         if data is None:
@@ -142,7 +144,7 @@ def send_preprocessing(q_print, config):
         elif mode.value is Call.VIDEO_OPEN_STREAMING.value:
             logger.debug("Open streaming...")
             print("Open streaming...")
-            video_resolution,  = data[1]
+            video_dir, video_resolution, = data[1]
             print(video_resolution)
             fourcc = cv2.VideoWriter_fourcc(*'h264')
             video_stream_writing = cv2.VideoWriter(
@@ -152,10 +154,12 @@ def send_preprocessing(q_print, config):
                 video_resolution,
             )
         elif mode.value is Call.VIDEO_STREAMING.value:
-            skeleton, real_video_frame = data[1]
+            skeleton, screen_skeleton, real_video_frame = data[1]
             image = np.reshape(real_video_frame, (*reversed(video_resolution), 4))
             image = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
             video_stream_writing.write(cv2.cvtColor(image, cv2.COLOR_RGBA2RGB))
+            drop_skeleton_to_file(video_dir, frame_number, skeleton[0], screen_skeleton[0])
+            frame_number += 1
         elif mode.value is Call.VIDEO_CLOSE_STREAMING.value:
             video_stream_writing.release()
             break
@@ -163,21 +167,20 @@ def send_preprocessing(q_print, config):
             skeleton, real_video, video_resolution = data[1]
             skeleton_sequence.append(skeleton)
             real_video_sequence.append(real_video)
-    print("Out of cycle")
 
 
 # Drop skeleton points to file
 def drop_skeleton_to_file(file, frame_index, player_joints, player_joint_cs):
-    filename = file + "Body//FileSkeleton.txt"
+    filename = file + "Body/FileSkeleton.txt"
     with open(filename, "a+", encoding="utf-8") as f:
         f.write("Frame: {0:d}\n".format(frame_index))
         logger.info(f'{len(player_joints)}')
         for ind in range(len(player_joints)):
-            f.write(f'{player_joints[ind].x:0.3f} '
-                    f'{player_joints[ind].y:1.3f}'
-                    f'{player_joints[ind].z:2.3f}'
-                    f'{player_joints[ind].state:3d}'
-                    f'{player_joint_cs[ind].x:4.3f}'
-                    f'{player_joint_cs[ind].y:5.3f}')
+            f.write(f'{player_joints[ind].x:.3f} '
+                    f'{player_joints[ind].y:.3f} '
+                    f'{player_joints[ind].z:.3f} '
+                    f'{player_joints[ind].state:d} '
+                    f'{player_joint_cs[ind].x:.3f} '
+                    f'{player_joint_cs[ind].y:.3f}\n')
 
     logger.info(f'Body was successfully written to file ' + filename)

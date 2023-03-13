@@ -292,6 +292,7 @@ if __name__ == '__main__':
         time.sleep(2)
 
         queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
+            kinect_frame.get_path(),
             (kinect.color_frame_desc.Width, kinect.color_frame_desc.Height)
         ]))
 
@@ -349,6 +350,7 @@ if __name__ == '__main__':
                         queue_video_streaming.put({i: kinect_frame})
                     if len(kinect_frame.player_screen_coordinates) > 0:
                         queue_video_recording.put((Call.VIDEO_STREAMING, [
+                            kinect_frame.player_coordinates,
                             kinect_frame.player_screen_coordinates,
                             kinect_frame.color_frame,
                         ]))
