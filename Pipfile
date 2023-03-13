@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "==1.18.1"
+comtypes = "==1.1.11"
+pykinect2 = {git = "https://github.com/xxraytz/PyKinect2.git"}
+opencv-python = "*"
+requests = "*"
+backoff = "*"
+django = "*"
+djangorestframework = "*"
+djangorestframework-simplejwt = "*"
+django-crispy-forms = "*"
+django-phone-field = "*"
+scikit-learn = "==1.1.3"
+django-filter = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
+python_full_version = "3.8.10"

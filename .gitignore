@@ -127,3 +127,30 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# Virtual Envs
+.venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Config?
+*.json
+
+# python
+__pycache__
+*.pyc
+
+# Records
+recs/
+Scene*/
+media/
+
+# database
+*.sqlite3
+
+*.mp4
+*.png
+*.csv
