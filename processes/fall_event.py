@@ -148,7 +148,7 @@ def send_preprocessing(q_print, config):
             print(video_resolution)
             fourcc = cv2.VideoWriter_fourcc(*'h264')
             video_stream_writing = cv2.VideoWriter(
-                video_stream_path,
+                video_dir + '/' + video_stream_path,
                 fourcc,
                 24,
                 video_resolution,

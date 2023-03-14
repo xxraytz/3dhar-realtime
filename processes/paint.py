@@ -50,7 +50,8 @@ def paint(q_paint, config):
         key = cv2.waitKey(1)
         if key in video_mode.get_all():
             video_mode = VideoMode(key)
-
+        if key == ord('q'):
+            break
         if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) == 0:
             break
 
