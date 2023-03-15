@@ -1,4 +1,5 @@
 import json
+from core.types import ScreenJoint
 from core.types import KinectFrame
 import cv2 as cv2
 import numpy as np
@@ -14,9 +15,9 @@ class VideoMode(Enum):
 
 
 def paint(q_paint, config):
-    skeleton_rgb = (0,0,255)
+    skeleton_rgb = (0, 0, 255)
     video_mode = VideoMode.SKELETAL
-    saved_color_image = cv2.imread('color_image1.png')
+    saved_color_image = cv2.imread('_color_image.png')
     window_name = 'Fall Detection System'
     fall_detection_text = 'Fall Detection'
 
@@ -42,8 +43,18 @@ def paint(q_paint, config):
             color_image = None
         if len(skeleton) != 0:
             for line in skeleton_lines:
-                cv2.line(color_image,
-                         skeleton[0][line[0]], skeleton[0][line[1]], skeleton_rgb, 5)
+                # if skeleton[0][line[0]].x == 0:
+                if not (skeleton[0][line[0]] == ScreenJoint(0, 0) or skeleton[0][line[1]] == ScreenJoint(0, 0)):
+                    # TODO: Почему-то иногда зависает
+                    # print(True)
+                    # if skeleton[0][line[0]] == (0, 0)
+                    cv2.line(color_image,
+                             skeleton[0][line[0]], skeleton[0][line[1]], (255, 150, 0), 9)
+                for joint in skeleton[0]:
+                    if joint != ScreenJoint(0, 0):
+                        cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
+                        cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
+
         color_image = cv2.resize(color_image, (1280, 800))
 
         cv2.imshow(window_name, color_image)

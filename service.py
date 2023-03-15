@@ -66,7 +66,6 @@ class Call(Enum):
     VIDEO_CLOSE_STREAMING = "video_streaming_close"
 
 
-
 def get_max_height(coordinates):
     max_height = coordinates[SKELETON_USABLE_JOINTS_NUMBER.get("Head")].y + SKELETON_HEIGHTS_CORRECTION
 
@@ -249,7 +248,6 @@ if __name__ == '__main__':
     queue_video_recording = Queue()
     process_video_recording = Process(target=send_preprocessing, args=(queue_video_recording, config))
     process_video_recording.start()
-
 
     # queue_video_recording.put(Call.LOGIN)
 
