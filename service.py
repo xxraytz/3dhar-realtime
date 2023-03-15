@@ -254,7 +254,7 @@ if __name__ == '__main__':
     # logger.info('Kinect color image saving...')
     # capture_picture()
     # logger.info('Kinect color image saved.')
-    #
+
     # queue_print.put(Call.TEST)
     # queue_print.put(Call.EXIT)
     # while queue_print.qsize() != 0:
@@ -272,7 +272,7 @@ if __name__ == '__main__':
             | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame()
-        kinect_frame.set_path(f'recs/Scene_{datetime.now().date()}_'
+        kinect_frame.set_path(f'recs/Person2/Scene_{datetime.now().date()}_'
                               f'{datetime.now().time().hour}-'
                               f'{datetime.now().time().minute}-'
                               f'{datetime.now().time().second}')
