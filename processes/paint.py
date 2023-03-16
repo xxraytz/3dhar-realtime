@@ -32,7 +32,7 @@ def paint(q_paint, config):
             break
         body_number = list(paint_frame.keys())[0]
         frame: KinectFrame = paint_frame.get(body_number)
-        skeleton = frame.player_screen_coordinates
+        skeletons = frame.skeleton_frames
         if video_mode is VideoMode.REAL:
             color_image = frame.color_frame
             color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 4))
@@ -41,19 +41,21 @@ def paint(q_paint, config):
             color_image = saved_color_image.copy()
         else:
             color_image = None
-        if len(skeleton) != 0:
-            for line in skeleton_lines:
-                # if skeleton[0][line[0]].x == 0:
-                if not (skeleton[0][line[0]] == ScreenJoint(0, 0) or skeleton[0][line[1]] == ScreenJoint(0, 0)):
-                    # TODO: Почему-то иногда зависает
-                    # print(True)
-                    # if skeleton[0][line[0]] == (0, 0)
-                    cv2.line(color_image,
-                             skeleton[0][line[0]], skeleton[0][line[1]], (255, 150, 0), 9)
-                for joint in skeleton[0]:
-                    if joint != ScreenJoint(0, 0):
-                        cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
-                        cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
+        if len(skeletons) != 0:
+            for sk in skeletons:
+                screen_coordinates = sk.player_screen_coordinates
+                person_id = sk.player_ID
+                for line in skeleton_lines:
+                    if not (screen_coordinates[line[0]] == ScreenJoint(0, 0)
+                            or screen_coordinates[line[1]] == ScreenJoint(0, 0)):
+                        cv2.line(color_image,
+                                 screen_coordinates[line[0]], screen_coordinates[line[1]], (255, 150, 0), 9)
+                    for joint in screen_coordinates:
+                        if joint != ScreenJoint(0, 0):
+                            cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
+                            cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
+                    cv2.putText(color_image, person_id, sk.player_screen_coordinates[3], cv2.FONT_HERSHEY_SIMPLEX,
+                                1, (255, 220, 200), 5, 2)
 
         color_image = cv2.resize(color_image, (1280, 800))
 

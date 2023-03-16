@@ -2,6 +2,7 @@ import os
 from typing import NamedTuple
 from svm.svc_addon import Svc
 from svm.one_class_addon import OneClass
+from datetime import datetime
 
 
 class ScreenJoint(NamedTuple):
@@ -21,14 +22,11 @@ class Joint(NamedTuple):
 class SkeletonFrame:
     """Class skeleton"""
 
-    __player_coordinates = []
-
-    def __init__(self, player_coordinates):
+    def __init__(self, coords, screen_coords):
         """constructor"""
-        self.__player_coordinates = player_coordinates
-
-    def get_coordinates(self):
-        return self.__player_coordinates
+        self.player_coordinates = coords
+        self.player_screen_coordinates = screen_coords
+        self.player_ID = 'NoID'
 
     def is_zero_state(self):
         """Check defective skeleton"""
@@ -106,21 +104,17 @@ class SvmWrapper:
 class KinectFrame:
     """This class make kinect data drawing easier."""
 
-    __depth_frame_height = 0
-    __depth_frame_width = 0
-    __color_frame_height = 0
-    __color_frame_width = 0
-
     color_frame = []
     depth_frame = []
-    player_screen_coordinates = []
-    player_depth_coordinates = []
-    player_coordinates = []
-
-    __path = ""
+    skeleton_frames = []
 
     def __init__(self):
-        pass
+        __depth_frame_height = 0
+        __depth_frame_width = 0
+        __color_frame_height = 0
+        __color_frame_width = 0
+
+        __path = ""
 
     def get_color_width(self):
         return self.__color_frame_width
@@ -148,12 +142,22 @@ class KinectFrame:
 
     def create_directory(self):
         os.mkdir(self.__path)
-        os.mkdir(self.__path + "Body//")
-        os.mkdir(self.__path + "Color//")
-        os.mkdir(self.__path + "Depth//")
+        os.mkdir(self.__path + "Body/")
+        os.mkdir(self.__path + "Color/")
+        os.mkdir(self.__path + "Depth/")
 
     def set_path(self, file):
-        self.__path = file + "//"
+        print(file)
+        print(os.path.isdir(file))
+        if not os.path.isdir(file):
+            os.mkdir(file)
+        print(os.path.isdir(file))
+        self.__path = file + f'Scene_{datetime.now().date()}_' \
+                             f'{datetime.now().time().hour}-' \
+                             f'{datetime.now().time().minute}-'\
+                             f'{datetime.now().time().second}' + "/"
+        print(self.__path)
+        print()
 
     def get_path(self):
         return self.__path
@@ -164,4 +168,3 @@ class KinectFrame:
             f.write("Fall_start " + str(self.start_fall) + ", Fall_end: " + str(self.end_fall) + "\n")
             self.start_fall = -1
             self.end_fall = -1
-

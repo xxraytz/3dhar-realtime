@@ -2,13 +2,13 @@ import argparse
 import json
 import logging
 import math
+import os
 
 import cv2
 import numpy as np
 import time
 from enum import Enum
 from multiprocessing import Queue, Process
-from datetime import datetime
 from processes.paint import paint
 from processes.fall_event import send_preprocessing
 
@@ -272,10 +272,7 @@ if __name__ == '__main__':
             | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame()
-        kinect_frame.set_path(f'recs/Person2/Scene_{datetime.now().date()}_'
-                              f'{datetime.now().time().hour}-'
-                              f'{datetime.now().time().minute}-'
-                              f'{datetime.now().time().second}')
+        kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
         kinect_frame.create_directory()
         bodies = None
 
@@ -305,8 +302,7 @@ if __name__ == '__main__':
                     kinect_frame.set_color_height(kinect.color_frame_desc.Height)
                     kinect_frame.color_frame = kinect.get_last_color_frame()
 
-                kinect_frame.player_screen_coordinates = []
-                kinect_frame.player_coordinates = []
+                kinect_frame.skeleton_frames = []
 
                 if bodies is not None:
                     next_frame = False
@@ -341,15 +337,15 @@ if __name__ == '__main__':
                                 player_screen_coordinates.append(types.ScreenJoint(int(joints_color_space[j].x),
                                                                                    int(joints_color_space[j].y)))
 
-                        kinect_frame.player_screen_coordinates.append(player_screen_coordinates)
-                        kinect_frame.player_coordinates.append(player_coordinates)
+                        kinect_frame.skeleton_frames.append(SkeletonFrame(player_coordinates,
+                                                                          player_screen_coordinates))
 
                     if visual == '1':
                         queue_video_streaming.put({i: kinect_frame})
-                    if len(kinect_frame.player_screen_coordinates) > 0:
+                    # if len(kinect_frame.skeleton_frames) > 0:
+                    if False:
                         queue_video_recording.put((Call.VIDEO_STREAMING, [
-                            kinect_frame.player_coordinates,
-                            kinect_frame.player_screen_coordinates,
+                            kinect_frame.skeleton_frames,
                             kinect_frame.color_frame,
                         ]))
 
