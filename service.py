@@ -367,3 +367,4 @@ if __name__ == '__main__':
     logger.info(f'Microsoft Kinect v2 was disconnected')
     logger.info(f'Stopping service...')
     logger.info(f'Service stopped.')
+

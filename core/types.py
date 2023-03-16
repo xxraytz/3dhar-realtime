@@ -30,9 +30,9 @@ class SkeletonFrame:
 
     def is_zero_state(self):
         """Check defective skeleton"""
-        if len(self.__player_coordinates) == 0:
+        if len(self.player_coordinates) == 0:
             return None
-        for joint in self.__player_coordinates:
+        for joint in self.player_coordinates:
             if joint.state == 0:
                 return False
         return True
