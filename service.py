@@ -272,7 +272,7 @@ if __name__ == '__main__':
             | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame()
-        kinect_frame.set_path(f'recs/Mihail/Scene_{datetime.now().date()}_'
+        kinect_frame.set_path(f'recs/?/Scene_{datetime.now().date()}_'
                               f'{datetime.now().time().hour}-'
                               f'{datetime.now().time().minute}-'
                               f'{datetime.now().time().second}')
