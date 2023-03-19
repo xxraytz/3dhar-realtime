@@ -11,6 +11,7 @@ from enum import Enum
 from multiprocessing import Queue, Process
 from processes.paint import paint
 from processes.fall_event import send_preprocessing
+from processes.id_monitoring import identify, MState
 
 import comtypes
 from pykinect2 import PyKinectV2, PyKinectRuntime
@@ -215,7 +216,8 @@ def capture_picture():
         while True:
             if kinect.has_new_color_frame():
                 color_image = kinect.get_last_color_frame()
-                color_image = np.reshape(color_image, (kinect.color_frame_desc.Height, kinect.color_frame_desc.Width, 4))
+                color_image = np.reshape(color_image,
+                                         (kinect.color_frame_desc.Height, kinect.color_frame_desc.Width, 4))
                 color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2RGBA)
                 cv2.imwrite('_color_image.png', color_image)
                 break
@@ -225,7 +227,6 @@ logging.getLogger(comtypes.logger.name).setLevel(logging.CRITICAL)
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -249,6 +250,10 @@ if __name__ == '__main__':
     process_video_recording = Process(target=send_preprocessing, args=(queue_video_recording, config))
     process_video_recording.start()
 
+    queue_person_identification = Queue()
+    process_person_identification = Process(target=identify, args=(queue_person_identification, config))
+    process_person_identification.start()
+    queue_person_identification.put(MState.CHECK_STATUS)
     # queue_video_recording.put(Call.LOGIN)
 
     # logger.info('Kinect color image saving...')
@@ -292,6 +297,7 @@ if __name__ == '__main__':
         ]))
 
         while not terminate:
+            frame_count += 1
             time.sleep(KINECT_FREQUENCY)
             if True:
                 if kinect.has_new_body_frame():
@@ -342,19 +348,23 @@ if __name__ == '__main__':
 
                     if visual == '1':
                         queue_video_streaming.put({i: kinect_frame})
-                    # if len(kinect_frame.skeleton_frames) > 0:
-                    if False:
+                    if len(kinect_frame.skeleton_frames) > 0:
                         queue_video_recording.put((Call.VIDEO_STREAMING, [
                             kinect_frame.skeleton_frames,
                             kinect_frame.color_frame,
                         ]))
+
+                    if frame_count > 50:
+                        queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
 
                     if process_video_streaming.exitcode is not None:
 
                         while not queue_video_streaming.qsize() == 0:
                             queue_video_streaming.get()
                         queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
+                        queue_person_identification.put(MState.END_MONITORING)
                         process_video_recording.join()
+                        process_person_identification.join()
                         process_video_streaming.join()
                         terminate = True
                     elif i == 5 and not have_bodies:
@@ -367,4 +377,3 @@ if __name__ == '__main__':
     logger.info(f'Microsoft Kinect v2 was disconnected')
     logger.info(f'Stopping service...')
     logger.info(f'Service stopped.')
-
