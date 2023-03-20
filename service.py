@@ -250,10 +250,6 @@ if __name__ == '__main__':
     process_video_recording = Process(target=send_preprocessing, args=(queue_video_recording, config))
     process_video_recording.start()
 
-    queue_person_identification = Queue()
-    process_person_identification = Process(target=identify, args=(queue_person_identification, config))
-    process_person_identification.start()
-    queue_person_identification.put(MState.CHECK_STATUS)
     # queue_video_recording.put(Call.LOGIN)
 
     # logger.info('Kinect color image saving...')
@@ -276,7 +272,7 @@ if __name__ == '__main__':
             | PyKinectV2.FrameSourceTypes_Body
             | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
-        kinect_frame = KinectFrame()
+        kinect_frame = KinectFrame(kinect.max_body_count)
         kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
         kinect_frame.create_directory()
         bodies = None
@@ -295,9 +291,18 @@ if __name__ == '__main__':
             kinect_frame.get_path(),
             (kinect.color_frame_desc.Width, kinect.color_frame_desc.Height)
         ]))
+        queue_person_identification = Queue()
+        process_person_identification = Process(target=identify, args=(queue_person_identification, config))
+        process_person_identification.start()
+        queue_person_identification.put(MState.CHECK_STATUS)
+        queue_person_identification.put((
+            MState.INIT_MONITORING,
+            kinect.max_body_count
+        ))
+
+        people_indexes = ['NoID'] * kinect.max_body_count
 
         while not terminate:
-            frame_count += 1
             time.sleep(KINECT_FREQUENCY)
             if True:
                 if kinect.has_new_body_frame():
@@ -308,8 +313,6 @@ if __name__ == '__main__':
                     kinect_frame.set_color_height(kinect.color_frame_desc.Height)
                     kinect_frame.color_frame = kinect.get_last_color_frame()
 
-                kinect_frame.skeleton_frames = []
-
                 if bodies is not None:
                     next_frame = False
                     have_bodies = False
@@ -319,6 +322,7 @@ if __name__ == '__main__':
                         if not body.is_tracked:
                             continue
 
+                        frame_count += 1
                         have_bodies = True
                         next_frame = True
                         joints = body.joints  # Joints in a skeleton space
@@ -343,19 +347,27 @@ if __name__ == '__main__':
                                 player_screen_coordinates.append(types.ScreenJoint(int(joints_color_space[j].x),
                                                                                    int(joints_color_space[j].y)))
 
-                        kinect_frame.skeleton_frames.append(SkeletonFrame(player_coordinates,
-                                                                          player_screen_coordinates))
+                        kinect_frame.skeleton_frames[i] = SkeletonFrame(player_coordinates, player_screen_coordinates)
+                        if kinect_frame.skeleton_frames[i] is not None:
+                            kinect_frame.skeleton_frames[i].set_id(people_indexes[i])
 
                     if visual == '1':
                         queue_video_streaming.put({i: kinect_frame})
-                    if len(kinect_frame.skeleton_frames) > 0:
-                        queue_video_recording.put((Call.VIDEO_STREAMING, [
-                            kinect_frame.skeleton_frames,
-                            kinect_frame.color_frame,
-                        ]))
-
-                    if frame_count > 50:
+                    if len(kinect_frame.skeleton_frames) > 0 and process_person_identification.is_alive():
+                        # queue_video_recording.put((Call.VIDEO_STREAMING, [
+                        #     kinect_frame.skeleton_frames,
+                        #     kinect_frame.color_frame,
+                        # ]))
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
+
+                    if frame_count > 100 and process_person_identification.is_alive():
+                        queue_person_identification.put(MState.GET_PERSON_ID)
+                        process_person_identification.join()
+                        ids = queue_person_identification.get()
+                        logger.info(f'Person = {ids[0]}')
+                        for j, person_id in enumerate(ids):
+                            people_indexes[j] = person_id
+                    print(people_indexes)
 
                     if process_video_streaming.exitcode is not None:
 

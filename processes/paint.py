@@ -47,20 +47,22 @@ def paint(q_paint, config):
             color_image = None
         if len(skeletons) != 0:
             for i, sk in enumerate(skeletons):
-                screen_coordinates = sk.player_screen_coordinates
-                # get_person_id(sk.player_coordinates)
-                person_id = sk.player_ID
-                for line in skeleton_lines:
-                    if not (screen_coordinates[line[0]] == ScreenJoint(0, 0)
-                            or screen_coordinates[line[1]] == ScreenJoint(0, 0)):
-                        cv2.line(color_image,
-                                 screen_coordinates[line[0]], screen_coordinates[line[1]], (255, 150, 0), 9)
-                    for joint in screen_coordinates:
-                        if joint != ScreenJoint(0, 0):
-                            cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
-                            cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
-                    cv2.putText(color_image, person_id + f" {i}", sk.player_screen_coordinates[3], cv2.FONT_HERSHEY_SIMPLEX,
-                                1, (255, 220, 200), 5, 2)
+                if sk is not None:
+                    screen_coordinates = sk.player_screen_coordinates
+                    # get_person_id(sk.player_coordinates)
+                    person_id = sk.player_ID
+                    for line in skeleton_lines:
+                        if not (screen_coordinates[line[0]] == ScreenJoint(0, 0)
+                                or screen_coordinates[line[1]] == ScreenJoint(0, 0)):
+                            cv2.line(color_image,
+                                     screen_coordinates[line[0]], screen_coordinates[line[1]], (255, 150, 0), 9)
+                        for joint in screen_coordinates:
+                            if joint != ScreenJoint(0, 0):
+                                cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
+                                cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
+                        cv2.putText(color_image, person_id + f" {i}", sk.player_screen_coordinates[3],
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    1, (255, 220, 200), 5, 2)
 
         color_image = cv2.resize(color_image, (1280, 800))
 

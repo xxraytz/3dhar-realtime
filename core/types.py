@@ -18,15 +18,24 @@ class Joint(NamedTuple):
     z: float = 0.
     state: int = 0
 
+    def tolist(self):
+        return [
+            self.x, self.y, self.z, float(self.state)
+        ]
+
+
+
 
 class SkeletonFrame:
-    """Class skeleton"""
 
-    def __init__(self, coords, screen_coords):
+    def __init__(self, coords, screen_coords) -> object:
         """constructor"""
         self.player_coordinates = coords
         self.player_screen_coordinates = screen_coords
         self.player_ID = 'NoID'
+
+    def set_id(self, id):
+        self.player_ID = id
 
     def is_zero_state(self):
         """Check defective skeleton"""
@@ -102,19 +111,17 @@ class SvmWrapper:
 
 
 class KinectFrame:
-    """This class make kinect data drawing easier."""
 
-    color_frame = []
-    depth_frame = []
-    skeleton_frames = []
+    def __init__(self, max_body_count):
+        self.color_frame = []
+        self.depth_frame = []
+        self.skeleton_frames = [None] * max_body_count
+        self.__depth_frame_height = 0
+        self.__depth_frame_width = 0
+        self.__color_frame_height = 0
+        self.__color_frame_width = 0
 
-    def __init__(self):
-        __depth_frame_height = 0
-        __depth_frame_width = 0
-        __color_frame_height = 0
-        __color_frame_width = 0
-
-        __path = ""
+        self.__path = ""
 
     def get_color_width(self):
         return self.__color_frame_width
@@ -147,6 +154,7 @@ class KinectFrame:
         os.mkdir(self.__path + "Depth/")
 
     def set_path(self, file):
+        print(file)
         print(file)
         print(os.path.isdir(file))
         if not os.path.isdir(file):
