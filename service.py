@@ -367,7 +367,6 @@ if __name__ == '__main__':
                         logger.info(f'Person = {ids[0]}')
                         for j, person_id in enumerate(ids):
                             people_indexes[j] = person_id
-                    print(people_indexes)
 
                     if process_video_streaming.exitcode is not None:
 
