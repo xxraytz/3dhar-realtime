@@ -322,7 +322,6 @@ if __name__ == '__main__':
                         if not body.is_tracked:
                             continue
 
-                        frame_count += 1
                         have_bodies = True
                         next_frame = True
                         joints = body.joints  # Joints in a skeleton space
@@ -358,14 +357,15 @@ if __name__ == '__main__':
                         #     kinect_frame.skeleton_frames,
                         #     kinect_frame.color_frame,
                         # ]))
+                        frame_count += 1
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
-
                     if frame_count > 1000 and process_person_identification.is_alive():
                         queue_person_identification.put(MState.GET_PERSON_ID)
                         process_person_identification.join()
                         ids = queue_person_identification.get()
                         for j, person_id in enumerate(ids):
                             people_indexes[j] = person_id
+                        print(people_indexes)
 
                     if process_video_streaming.exitcode is not None:
 
