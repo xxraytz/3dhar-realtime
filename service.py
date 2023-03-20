@@ -364,7 +364,6 @@ if __name__ == '__main__':
                         queue_person_identification.put(MState.GET_PERSON_ID)
                         process_person_identification.join()
                         ids = queue_person_identification.get()
-                        logger.info(f'Person = {ids[0]}')
                         for j, person_id in enumerate(ids):
                             people_indexes[j] = person_id
 

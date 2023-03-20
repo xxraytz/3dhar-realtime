@@ -45,7 +45,6 @@ def identify(qm, config):
             profiles = get_profiles(os.environ.get("profile_path"))
 
             for i in range(0, data[1]):
-                print(f'skeleton_{i:03d}', flush=True)
                 skeletons[f'skeleton_{i:03d}'] = deque(maxlen=1000)
         elif state.value is MState.END_MONITORING.value:
             break
@@ -75,7 +74,7 @@ def identify(qm, config):
 def get_person_id(cur, stored):
     train_x, train_y = stored
     return knn(np.asarray(train_x, dtype=np.float64), np.asarray(train_y),
-               np.asarray(cur, dtype=np.float64), 2)
+               np.asarray(cur, dtype=np.float64), 3)
 
 
 def count_max(classes):
@@ -100,7 +99,12 @@ def get_profiles(filename):
 
 
 def knn(train_sample, train_answers, new_object, k, metric='euclidean'):
-    nn = np.argsort(cdist(train_sample, np.expand_dims(new_object, axis=1).T, metric=metric).T, axis=1)[:, :k]
+    nn = np.argsort(cdist(
+        train_sample,
+        np.expand_dims(new_object, axis=1).T,
+        metric=metric
+    ).T, axis=1)[:, :k]
+
     prob_classes = train_answers[nn]
     # print(prob_classes)
     return count_max(prob_classes.reshape([len(nn[0])]))
