@@ -360,7 +360,7 @@ if __name__ == '__main__':
                         # ]))
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
 
-                    if frame_count > 100 and process_person_identification.is_alive():
+                    if frame_count > 1000 and process_person_identification.is_alive():
                         queue_person_identification.put(MState.GET_PERSON_ID)
                         process_person_identification.join()
                         ids = queue_person_identification.get()

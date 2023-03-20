@@ -4,6 +4,7 @@ from collections import deque
 from enum import Enum
 from scipy.spatial import distance
 import numpy as np
+from scipy.spatial.distance import cdist
 from core.types import Joint
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -23,6 +24,7 @@ class MState(Enum):
 def identify(qm, config):
     skeletons = {}
     database = None
+    profiles = None
     while True:
 
         data = qm.get()
@@ -39,9 +41,12 @@ def identify(qm, config):
             database = height_correction(database)
             database = align_on_the_floor(database)
             database = skeleton_overlay(database)
+
+            profiles = get_profiles(os.environ.get("profile_path"))
+
             for i in range(0, data[1]):
                 print(f'skeleton_{i:03d}', flush=True)
-                skeletons[f'skeleton_{i:03d}'] = deque(maxlen=300)
+                skeletons[f'skeleton_{i:03d}'] = deque(maxlen=1000)
         elif state.value is MState.END_MONITORING.value:
             break
         elif state.value is MState.APPEND_MONITORING.value:
@@ -59,15 +64,46 @@ def identify(qm, config):
                                                        skeletons[sk_ind])))
                     video = align_on_the_floor(video)
                     video = skeleton_overlay(video)
+                    print(len(video))
                     dm = basic_assembly_metric(database, video)
                     profile = np.median(dm, axis=1)
-                    ids[i] = get_person_id(profile)
+                    ids[i] = get_person_id(profile, profiles)
             qm.put(ids)
             break
 
 
-def get_person_id(profile):
-    return "Egor"
+def get_person_id(cur, stored):
+    train_x, train_y = stored
+    return knn(np.asarray(train_x, dtype=np.float64), np.asarray(train_y),
+               np.asarray(cur, dtype=np.float64), 2)
+
+
+def count_max(classes):
+    counter = {}
+    for e in classes:
+        if e in counter:
+            counter[e] += 1
+        else:
+            counter[e] = 1
+    return max(counter, key=counter.get)
+
+
+def get_profiles(filename):
+    with open(os.environ.get("profiles_path"), "r+") as file:
+        profiles = []
+        profile_names = []
+        file.readline()
+        for line in file:
+            profile_names.append(line.split(",")[:1])
+            profiles.append(line.split(',')[2:])
+    return profiles, profile_names
+
+
+def knn(train_sample, train_answers, new_object, k, metric='euclidean'):
+    nn = np.argsort(cdist(train_sample, np.expand_dims(new_object, axis=1).T, metric=metric).T, axis=1)[:, :k]
+    prob_classes = train_answers[nn]
+    # print(prob_classes)
+    return count_max(prob_classes.reshape([len(nn[0])]))
 
 
 def get_database(file):
