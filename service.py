@@ -269,7 +269,7 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    with KinectEmulator('recs/IvanKukurudzyak/Scene_2023-03-22_12-3-55') as kinect:
+    with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
         KINECT_FREQUENCY = 0.
     #
     # with PyKinectRuntime.PyKinectRuntime(
