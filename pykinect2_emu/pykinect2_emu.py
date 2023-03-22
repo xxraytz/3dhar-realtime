@@ -1,10 +1,13 @@
+import os
+
 import cv2 as cv2
+import numpy as np
 
 
 class ColorFrameDescription:
     def __init__(self):
-        self.Width = 1920
-        self.Height = 1080
+        self.Width = 0
+        self.Height = 0
 
 
 class Position:
@@ -16,12 +19,10 @@ class Position:
 
 
 class ScreenJoint:
-    def __init__(self, x, y):
-        self.x = int(x)
-        self.y = int(y)
 
-    def __str__(self):
-        return f'{self.x} {self.y}'
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 
 class Joint:
@@ -40,9 +41,9 @@ class Bodies:
 
 
 class Body:
-    def __init__(self, joints):
+    def __init__(self, joints, is_tracked):
         self.joints = joints
-        self.is_tracked = True
+        self.is_tracked = is_tracked
 
 
 class KinectEmulator:
@@ -54,16 +55,13 @@ class KinectEmulator:
         self.__frame_number = 0
         self.color_frame_desc = ColorFrameDescription()
         self.max_body_count = 6
+        self.__color_coordinates = []
         self.__exceed_points = [7, 11, 15, 19, 21, 22, 23, 24]
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self.__color_skeleton_frames = self.__get_color_body_frames()
+        self.__skeleton_frames = self.__get_body_frames()
 
     def __get_body_frames(self):
-        with open(self.__body_data, 'r+') as file:
+        with open(self.__body_data, 'r') as file:
             skeleton_frames = []
             for line in file:
                 if 'frame' in line.lower():
@@ -80,7 +78,7 @@ class KinectEmulator:
         return skeleton_frames
 
     def __get_color_body_frames(self):
-        with open(self.__body_data, 'r+') as file:
+        with open(self.__body_data, 'r') as file:
             skeleton_frames = []
             for line in file:
                 if 'frame' in line.lower():
@@ -97,16 +95,18 @@ class KinectEmulator:
         return skeleton_frames
 
     def __body_frames_generator(self):
-        skeleton_frames = self.__get_body_frames()
         while True:
             yield [
-                Body(skeleton_frames[self.__frame_number])
-            ] * self.max_body_count
+                Body(self.__skeleton_frames[self.__frame_number], True)
+            ] + [
+                Body(self.__skeleton_frames[self.__frame_number], False)
+            ] * (self.max_body_count - 1)
 
-    def __color_body_frames_generator(self):
-        skeleton_frames = self.__get_color_body_frames()
+    def __body_color_frames_generator(self):
         while True:
-            yield skeleton_frames[self.__frame_number]
+            yield [
+                self.__color_skeleton_frames[self.__frame_number]
+            ] * self.max_body_count
 
     def __color_frames_generator(self):
         cap = cv2.VideoCapture(self.__color_data)
@@ -136,4 +136,17 @@ class KinectEmulator:
         return True
 
     def body_joints_to_color_space(self, joints):
-        return next(self.__color_body_frames_generator())
+        self.__frame_number -= 1
+        index = None
+        color_frames = next(self.__body_color_frames_generator())
+        for i, jnts in enumerate(next(self.__body_frames_generator())):
+            if [joints[j].__str__() == jnts.joints[j].__str__() for j in range(len(joints))] == [True] * len(joints):
+                index = i
+        self.__frame_number += 1
+        return color_frames[index]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass

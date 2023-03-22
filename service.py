@@ -9,6 +9,8 @@ import numpy as np
 import time
 from enum import Enum
 from multiprocessing import Queue, Process
+
+from pykinect2_emu.pykinect2_emu import KinectEmulator
 from processes.paint import paint
 from processes.fall_event import send_preprocessing
 from processes.id_monitoring import identify, MState
@@ -267,10 +269,13 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    with PyKinectRuntime.PyKinectRuntime(
-            PyKinectV2.FrameSourceTypes_Color
-            | PyKinectV2.FrameSourceTypes_Body
-            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+    with KinectEmulator('recs/IvanKukurudzyak/Scene_2023-03-22_12-3-55') as kinect:
+        KINECT_FREQUENCY = 0.
+    #
+    # with PyKinectRuntime.PyKinectRuntime(
+    #         PyKinectV2.FrameSourceTypes_Color
+    #         | PyKinectV2.FrameSourceTypes_Body
+    #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame(kinect.max_body_count)
         kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
@@ -357,7 +362,7 @@ if __name__ == '__main__':
                         #     kinect_frame.skeleton_frames,
                         #     kinect_frame.color_frame,
                         # ]))
-                        frame_count += 11
+                        frame_count += 1
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
                     if frame_count > 500 and process_person_identification.is_alive():
                         queue_person_identification.put(MState.GET_PERSON_ID)
