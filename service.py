@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import math
+import os
 
 import cv2
 import numpy as np
@@ -272,7 +273,7 @@ if __name__ == '__main__':
             | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame()
-        kinect_frame.set_path(f'recs/?/Scene_{datetime.now().date()}_'
+        kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/Scene_{datetime.now().date()}_'
                               f'{datetime.now().time().hour}-'
                               f'{datetime.now().time().minute}-'
                               f'{datetime.now().time().second}')
@@ -363,7 +364,7 @@ if __name__ == '__main__':
                         terminate = True
                     elif i == 5 and not have_bodies:
                         queue_video_streaming.put({i: kinect_frame})
-
+                    # Иван Кукурудзяк kukurudzyak
                     if next_frame:
                         frame_count += 1
 
