@@ -154,18 +154,12 @@ class KinectFrame:
         os.mkdir(self.__path + "Depth/")
 
     def set_path(self, file):
-        print(file)
-        print(file)
-        print(os.path.isdir(file))
         if not os.path.isdir(file):
             os.mkdir(file)
-        print(os.path.isdir(file))
         self.__path = file + f'Scene_{datetime.now().date()}_' \
                              f'{datetime.now().time().hour}-' \
                              f'{datetime.now().time().minute}-'\
                              f'{datetime.now().time().second}' + "/"
-        print(self.__path)
-        print()
 
     def get_path(self):
         return self.__path

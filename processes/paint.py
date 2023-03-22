@@ -62,7 +62,7 @@ def paint(q_paint, config):
                                 cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
                         cv2.putText(color_image, person_id + f" {i}", sk.player_screen_coordinates[3],
                                     cv2.FONT_HERSHEY_SIMPLEX,
-                                    1, (255, 220, 200), 5, 2)
+                                    1, (237, 72, 48), 5, 2)
 
         color_image = cv2.resize(color_image, (1280, 800))
 

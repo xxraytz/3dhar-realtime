@@ -45,7 +45,7 @@ def identify(qm, config):
             profiles = get_profiles(os.environ.get("profile_path"))
 
             for i in range(0, data[1]):
-                skeletons[f'skeleton_{i:03d}'] = deque(maxlen=1000)
+                skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
         elif state.value is MState.END_MONITORING.value:
             break
         elif state.value is MState.APPEND_MONITORING.value:
@@ -63,7 +63,6 @@ def identify(qm, config):
                                                        skeletons[sk_ind])))
                     video = align_on_the_floor(video)
                     video = skeleton_overlay(video)
-                    print(len(video))
                     dm = basic_assembly_metric(database, video)
                     profile = np.median(dm, axis=1)
                     ids[i] = get_person_id(profile, profiles)
