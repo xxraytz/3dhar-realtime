@@ -5,7 +5,7 @@ from enum import Enum
 from scipy.spatial import distance
 import numpy as np
 from scipy.spatial.distance import cdist
-from core.types import Joint
+from sklearn.metrics import pairwise_distances
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -86,10 +86,7 @@ def count_max(classes):
     return max(counter, key=counter.get)
 
 
-from sklearn.metrics import pairwise_distances
-
-
-def get_profiles(filename):
+def get_profiles():
     with open(os.environ.get("profiles_path"), "r+") as file:
         profiles = []
         profile_names = []
@@ -112,12 +109,15 @@ def knn(train_sample, train_answers, new_object, ro_values, k, metric='euclidean
         np.expand_dims(new_object, axis=1).T,
         metric=metric
     ).T
-    d = d[np.where(d > np.asarray([ro_values[name] for name in train_answers]))]
-    nn = np.sort(d, axis=1)[:, :(k if k < d.shape[0] else d.shape[0])] # TODO: There mistake
-    nn_args = np.argsort(d, axis=1)[:, :k]
+    better_candidates = np.where(d < np.asarray([ro_values[name] for name in train_answers]))[1]
+    d = d[0][better_candidates]
+    train_answers = train_answers[better_candidates]
+    k = k if k < d.shape[0] else d.shape[0]
+    nn = np.sort(d)[:k]  # TODO: There no mistake
+    nn_args = np.argsort(d)[:k]
     prob_classes = train_answers[nn_args]
     # print(prob_classes)
-    return count_max(prob_classes.reshape([len(nn[0])]))
+    return count_max(prob_classes)
 
 
 def get_database(file):
