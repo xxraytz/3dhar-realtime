@@ -83,7 +83,7 @@ def count_max(classes):
             counter[e] += 1
         else:
             counter[e] = 1
-    return max(counter, key=counter.get) # TODO: Учесть непохожесть на профили базы
+    return max(counter, key=counter.get) if len(counter) > 0 else 'NoID'
 
 
 def get_profiles():
