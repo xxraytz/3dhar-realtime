@@ -42,7 +42,7 @@ def identify(qm, config):
             database = align_on_the_floor(database)
             database = skeleton_overlay(database)
 
-            profiles = get_profiles(os.environ.get("profile_path"))
+            profiles = get_profiles()
 
             for i in range(0, data[1]):
                 skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
@@ -83,7 +83,7 @@ def count_max(classes):
             counter[e] += 1
         else:
             counter[e] = 1
-    return max(counter, key=counter.get)
+    return max(counter, key=counter.get) # TODO: Учесть непохожесть на профили базы
 
 
 def get_profiles():
