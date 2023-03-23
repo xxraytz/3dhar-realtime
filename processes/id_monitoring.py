@@ -71,9 +71,9 @@ def identify(qm, config):
 
 
 def get_person_id(cur, stored):
-    train_x, train_y = stored
+    train_x, train_y, ro_values = stored
     return knn(np.asarray(train_x, dtype=np.float64), np.asarray(train_y),
-               np.asarray(cur, dtype=np.float64), 3)
+               np.asarray(cur, dtype=np.float64), ro_values, 3)
 
 
 def count_max(classes):
@@ -86,25 +86,36 @@ def count_max(classes):
     return max(counter, key=counter.get)
 
 
+from sklearn.metrics import pairwise_distances
+
+
 def get_profiles(filename):
     with open(os.environ.get("profiles_path"), "r+") as file:
         profiles = []
         profile_names = []
         file.readline()
         for line in file:
-            profile_names.append(line.split(",")[:1])
+            profile_names.append(line.split(",")[:1][0])
             profiles.append(line.split(',')[2:])
-    return profiles, profile_names
+    ro_values = {}
+    for name in set(profile_names):
+        indexes = [index for index, value in enumerate(profile_names) if value == name]
+        values = [profiles[i] for i in indexes]
+        d = pairwise_distances(np.asarray(values))
+        ro_values[name] = float(os.environ.get('alpha')) * np.max(d[np.triu_indices(d.shape[0], 1)])
+    return profiles, profile_names, ro_values
 
 
-def knn(train_sample, train_answers, new_object, k, metric='euclidean'):
-    nn = np.argsort(cdist(
+def knn(train_sample, train_answers, new_object, ro_values, k, metric='euclidean'):
+    d = cdist(
         train_sample,
         np.expand_dims(new_object, axis=1).T,
         metric=metric
-    ).T, axis=1)[:, :k]
-
-    prob_classes = train_answers[nn]
+    ).T
+    d = d[np.where(d > np.asarray([ro_values[name] for name in train_answers]))]
+    nn = np.sort(d, axis=1)[:, :(k if k < d.shape[0] else d.shape[0])] # TODO: There mistake
+    nn_args = np.argsort(d, axis=1)[:, :k]
+    prob_classes = train_answers[nn_args]
     # print(prob_classes)
     return count_max(prob_classes.reshape([len(nn[0])]))
 
@@ -149,6 +160,7 @@ def align_on_the_floor(sample_video):
             joint[1] -= d_y
     return sample_video
 
+
 def skeleton_overlay(sample_video):
     for skeleton in sample_video:
         for i, joint in enumerate(skeleton):
@@ -158,6 +170,7 @@ def skeleton_overlay(sample_video):
         skeleton[0][0] = 0
         skeleton[0][2] = 0
     return sample_video
+
 
 def basic_assembly_metric(basic_assembly, video_sequence):
     def skeletal_distance(s1, s2):
