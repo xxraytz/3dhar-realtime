@@ -36,7 +36,10 @@ def paint(q_paint, config):
         skeletons = frame.skeleton_frames
         if video_mode is VideoMode.REAL:
             color_image = frame.color_frame
-            color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 3))
+            if len(color_image.shape) > 2:
+                color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 3))
+            else:
+                color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 4))
             color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2RGBA)
         elif video_mode is VideoMode.SKELETAL:
             color_image = saved_color_image.copy()
