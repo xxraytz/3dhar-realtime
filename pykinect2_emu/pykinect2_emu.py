@@ -5,9 +5,9 @@ import numpy as np
 
 
 class ColorFrameDescription:
-    def __init__(self):
-        self.Width = 0
-        self.Height = 0
+    def __init__(self, width=0, height=0):
+        self.Width = width
+        self.Height = height
 
 
 class Position:
@@ -48,17 +48,22 @@ class Body:
 
 class KinectEmulator:
 
+    KINECT_COLOR_WIDTH = 1920
+    KINECT_COLOR_HEIGHT = 1080
+
     def __init__(self, path):
         self.__path_to_data = path if path is not None else "data/.."
         self.__body_data = self.__path_to_data + "/Body/FileSkeleton.txt"
         self.__color_data = self.__path_to_data + '/Color/person_stream.mp4'
-        self.__frame_number = 0
-        self.color_frame_desc = ColorFrameDescription()
+        self.__frame_number = -1
+        self.color_frame_desc = ColorFrameDescription(width=self.KINECT_COLOR_WIDTH, height=self.KINECT_COLOR_HEIGHT)
         self.max_body_count = 6
         self.__color_coordinates = []
         self.__exceed_points = [7, 11, 15, 19, 21, 22, 23, 24]
         self.__color_skeleton_frames = self.__get_color_body_frames()
         self.__skeleton_frames = self.__get_body_frames()
+        self.__color_frames_gen = self.__color_frames_generator()
+        self.__current_color_frame = None
 
     def __get_body_frames(self):
         with open(self.__body_data, 'r') as file:
@@ -117,7 +122,8 @@ class KinectEmulator:
                 yield frame
             else:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                self.__frame_number = 0
+                print('Camera to zero')
+                self.__frame_number = -1
                 continue
         cap.release()
 
@@ -129,20 +135,18 @@ class KinectEmulator:
         return Bodies(next(self.__body_frames_generator()))
 
     def get_last_color_frame(self):
-        return next(self.__color_frames_generator())
+        return next(self.__color_frames_gen)
 
     @staticmethod
     def has_new_color_frame():
         return True
 
     def body_joints_to_color_space(self, joints):
-        self.__frame_number -= 1
         index = None
         color_frames = next(self.__body_color_frames_generator())
         for i, jnts in enumerate(next(self.__body_frames_generator())):
             if [joints[j].__str__() == jnts.joints[j].__str__() for j in range(len(joints))] == [True] * len(joints):
                 index = i
-        self.__frame_number += 1
         return color_frames[index]
 
     def __enter__(self):

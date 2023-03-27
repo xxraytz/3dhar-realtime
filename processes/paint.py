@@ -19,12 +19,9 @@ def get_person_id(skeleton, ):
 
 
 def paint(q_paint, config):
-    skeleton_rgb = (0, 0, 255)
     video_mode = VideoMode.SKELETAL
     saved_color_image = cv2.imread('_color_image.png')
     window_name = 'Fall Detection System'
-    fall_detection_text = 'Fall Detection'
-
     with open(config, 'r') as stream:
         config = json.load(stream)
         skeleton_lines = config["SKELETON_LINES"]
@@ -39,7 +36,7 @@ def paint(q_paint, config):
         skeletons = frame.skeleton_frames
         if video_mode is VideoMode.REAL:
             color_image = frame.color_frame
-            color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 4))
+            color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 3))
             color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2RGBA)
         elif video_mode is VideoMode.SKELETAL:
             color_image = saved_color_image.copy()
@@ -51,6 +48,10 @@ def paint(q_paint, config):
                     screen_coordinates = sk.player_screen_coordinates
                     # get_person_id(sk.player_coordinates)
                     person_id = sk.player_ID
+                    if person_id != 'NoID':
+                        id_rgb = (96, 230, 0)
+                    else:
+                        id_rgb = (237, 72, 48)
                     for line in skeleton_lines:
                         if not (screen_coordinates[line[0]] == ScreenJoint(0, 0)
                                 or screen_coordinates[line[1]] == ScreenJoint(0, 0)):
@@ -62,7 +63,7 @@ def paint(q_paint, config):
                                 cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
                         cv2.putText(color_image, person_id + f" {i}", sk.player_screen_coordinates[3],
                                     cv2.FONT_HERSHEY_SIMPLEX,
-                                    1, (237, 72, 48), 5, 2)
+                                    1, id_rgb, 3, 2)
 
         color_image = cv2.resize(color_image, (1280, 800))
 

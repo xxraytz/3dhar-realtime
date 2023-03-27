@@ -269,13 +269,13 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-    #     KINECT_FREQUENCY = 0.
-
-    with PyKinectRuntime.PyKinectRuntime(
-            PyKinectV2.FrameSourceTypes_Color
-            | PyKinectV2.FrameSourceTypes_Body
-            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+    with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+        # KINECT_FREQUENCY = 0.
+    #
+    # with PyKinectRuntime.PyKinectRuntime(
+    #         PyKinectV2.FrameSourceTypes_Color
+    #         | PyKinectV2.FrameSourceTypes_Body
+    #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame(kinect.max_body_count)
         kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
@@ -310,13 +310,14 @@ if __name__ == '__main__':
         while not terminate:
             time.sleep(KINECT_FREQUENCY)
             if True:
-                if kinect.has_new_body_frame():
-                    bodies = kinect.get_last_body_frame()
 
                 if kinect.has_new_color_frame():
                     kinect_frame.set_color_width(kinect.color_frame_desc.Width)
                     kinect_frame.set_color_height(kinect.color_frame_desc.Height)
                     kinect_frame.color_frame = kinect.get_last_color_frame()
+
+                if kinect.has_new_body_frame():
+                    bodies = kinect.get_last_body_frame()
 
                 if bodies is not None:
                     next_frame = False
