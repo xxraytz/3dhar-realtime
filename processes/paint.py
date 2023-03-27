@@ -51,10 +51,12 @@ def paint(q_paint, config):
                     screen_coordinates = sk.player_screen_coordinates
                     # get_person_id(sk.player_coordinates)
                     person_id = sk.player_ID
-                    if person_id != 'NoID':
-                        id_rgb = (96, 230, 0)
-                    else:
+                    if person_id == 'NoID':
                         id_rgb = (237, 72, 48)
+                    elif person_id == 'Reloading...':
+                        id_rgb = (34, 254, 254)
+                    else:
+                        id_rgb = (96, 230, 0)
                     for line in skeleton_lines:
                         if not (screen_coordinates[line[0]] == ScreenJoint(0, 0)
                                 or screen_coordinates[line[1]] == ScreenJoint(0, 0)):
@@ -64,7 +66,8 @@ def paint(q_paint, config):
                             if joint != ScreenJoint(0, 0):
                                 cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
                                 cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
-                        cv2.putText(color_image, person_id + f" {i}", sk.player_screen_coordinates[3],
+                        cv2.putText(color_image, f"{i}. {person_id}",
+                                    (sk.player_screen_coordinates[3][0] + 20, sk.player_screen_coordinates[3][1] + 5),
                                     cv2.FONT_HERSHEY_SIMPLEX,
                                     1, id_rgb, 3, 2)
 

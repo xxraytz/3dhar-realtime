@@ -7,7 +7,6 @@ import os
 import cv2
 import numpy as np
 import time
-from datetime import datetime
 from enum import Enum
 from multiprocessing import Queue, Process
 
@@ -299,6 +298,7 @@ if __name__ == '__main__':
         ]))
 
         id_delay = 5  # in sec
+        monitoring_t = 10
 
         queue_person_identification = Queue()
         process_person_identification = Process(target=identify, args=(queue_person_identification, config))
@@ -308,12 +308,29 @@ if __name__ == '__main__':
             MState.INIT_MONITORING,
             kinect.max_body_count
         ))
-
+        process_id_start = time.time()
+        process_id_end = -1
         people_indexes = ['NoID'] * kinect.max_body_count
         monitoring_process = True
+        waiting_person_id = True
         while not terminate:
             time.sleep(KINECT_FREQUENCY)
             if True:
+
+                if not monitoring_process:
+                    if (time.time() - process_id_end) > id_delay:
+                        print('Once again')
+                        monitoring_process = True
+                        waiting_person_id = True
+                        process_person_identification = Process(target=identify,
+                                                                args=(queue_person_identification, config))
+                        process_person_identification.start()
+                        queue_person_identification.put(MState.CHECK_STATUS)
+                        queue_person_identification.put((
+                            MState.INIT_MONITORING,
+                            kinect.max_body_count
+                        ))
+                        process_id_start = time.time()
 
                 if kinect.has_new_color_frame():
                     kinect_frame.set_color_width(kinect.color_frame_desc.Width)
@@ -363,22 +380,27 @@ if __name__ == '__main__':
                     if visual == '1':
                         queue_video_streaming.put({i: kinect_frame})
                     if len(kinect_frame.skeleton_frames) > 0 and monitoring_process:
-
                         # queue_video_recording.put((Call.VIDEO_STREAMING, [
                         #     kinect_frame.skeleton_frames,
                         #     kinect_frame.color_frame,
                         # ]))
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
-                    if frame_count == 400 and monitoring_process:
+                    if round(time.time() - process_id_start) > monitoring_t and monitoring_process:
                         queue_person_identification.put(MState.GET_PERSON_ID)
                         monitoring_process = False
+                        process_id_end = time.time()
+                        people_indexes = ["Reloading..."] * kinect.max_body_count
 
-                    if frame_count == 420 and not monitoring_process:
+                    if (round(time.time() - process_id_start) > monitoring_t + 1
+                            and not monitoring_process
+                            and waiting_person_id):
+                        waiting_person_id = False
                         process_person_identification.join()
                         ids = queue_person_identification.get()
                         for j, person_id in enumerate(ids):
                             people_indexes[j] = person_id
                         print(people_indexes)
+                        process_person_identification.terminate()
 
                     if process_video_streaming.exitcode is not None:
 
