@@ -7,6 +7,7 @@ import os
 import cv2
 import numpy as np
 import time
+from datetime import datetime
 from enum import Enum
 from multiprocessing import Queue, Process
 
@@ -296,6 +297,9 @@ if __name__ == '__main__':
             kinect_frame.get_path(),
             (kinect.color_frame_desc.Width, kinect.color_frame_desc.Height)
         ]))
+
+        id_delay = 5  # in sec
+
         queue_person_identification = Queue()
         process_person_identification = Process(target=identify, args=(queue_person_identification, config))
         process_person_identification.start()
@@ -359,6 +363,7 @@ if __name__ == '__main__':
                     if visual == '1':
                         queue_video_streaming.put({i: kinect_frame})
                     if len(kinect_frame.skeleton_frames) > 0 and monitoring_process:
+
                         # queue_video_recording.put((Call.VIDEO_STREAMING, [
                         #     kinect_frame.skeleton_frames,
                         #     kinect_frame.color_frame,
