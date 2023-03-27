@@ -271,11 +271,11 @@ if __name__ == '__main__':
 
     with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
         # KINECT_FREQUENCY = 0.
-    #
-    # with PyKinectRuntime.PyKinectRuntime(
-    #         PyKinectV2.FrameSourceTypes_Color
-    #         | PyKinectV2.FrameSourceTypes_Body
-    #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        #
+        # with PyKinectRuntime.PyKinectRuntime(
+        #         PyKinectV2.FrameSourceTypes_Color
+        #         | PyKinectV2.FrameSourceTypes_Body
+        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame(kinect.max_body_count)
         kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
@@ -306,7 +306,7 @@ if __name__ == '__main__':
         ))
 
         people_indexes = ['NoID'] * kinect.max_body_count
-
+        monitoring_process = True
         while not terminate:
             time.sleep(KINECT_FREQUENCY)
             if True:
@@ -358,15 +358,17 @@ if __name__ == '__main__':
 
                     if visual == '1':
                         queue_video_streaming.put({i: kinect_frame})
-                    if len(kinect_frame.skeleton_frames) > 0 and process_person_identification.is_alive():
+                    if len(kinect_frame.skeleton_frames) > 0 and monitoring_process:
                         # queue_video_recording.put((Call.VIDEO_STREAMING, [
                         #     kinect_frame.skeleton_frames,
                         #     kinect_frame.color_frame,
                         # ]))
-                        frame_count += 1
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
-                    if frame_count > 500 and process_person_identification.is_alive():
+                    if frame_count == 400 and monitoring_process:
                         queue_person_identification.put(MState.GET_PERSON_ID)
+                        monitoring_process = False
+
+                    if frame_count == 420 and not monitoring_process:
                         process_person_identification.join()
                         ids = queue_person_identification.get()
                         for j, person_id in enumerate(ids):
