@@ -332,7 +332,6 @@ if __name__ == '__main__':
                         ))
                         process_id_start = time.time()
 
-                kinect_frame.reset(kinect.max_body_count)
 
                 if kinect.has_new_color_frame():
                     kinect_frame.set_color_width(kinect.color_frame_desc.Width)
@@ -349,6 +348,7 @@ if __name__ == '__main__':
                         body = bodies.bodies[i]
 
                         if not body.is_tracked:
+                            kinect_frame.skeleton_frames[i] = None
                             continue
 
                         have_bodies = True
@@ -393,7 +393,7 @@ if __name__ == '__main__':
                         process_id_end = time.time()
                         people_indexes = ["Reloading..."] * kinect.max_body_count
 
-                    if (round(time.time() - process_id_start) > monitoring_t + 3
+                    if (round(time.time() - process_id_start) > monitoring_t + 4
                             and not monitoring_process
                             and waiting_person_id):
                         waiting_person_id = False

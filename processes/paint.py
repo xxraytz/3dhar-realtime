@@ -71,7 +71,7 @@ def paint(q_paint, config):
                                     cv2.FONT_HERSHEY_SIMPLEX,
                                     1, id_rgb, 3, 2)
 
-        color_image = cv2.resize(color_image, (1280, 800))
+        color_image = cv2.resize(color_image, (1920, 1080))
 
         cv2.imshow(window_name, color_image)
         key = cv2.waitKey(1)
