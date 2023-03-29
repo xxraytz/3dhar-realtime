@@ -269,13 +269,12 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        # KINECT_FREQUENCY = 0.
-        #
-        # with PyKinectRuntime.PyKinectRuntime(
-        #         PyKinectV2.FrameSourceTypes_Color
-        #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+    # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+
+    with PyKinectRuntime.PyKinectRuntime(
+            PyKinectV2.FrameSourceTypes_Color
+            | PyKinectV2.FrameSourceTypes_Body
+            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame(kinect.max_body_count)
         kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
@@ -308,6 +307,7 @@ if __name__ == '__main__':
             MState.INIT_MONITORING,
             kinect.max_body_count
         ))
+
         process_id_start = time.time()
         process_id_end = -1
         people_indexes = ['NoID'] * kinect.max_body_count
@@ -331,6 +331,8 @@ if __name__ == '__main__':
                             kinect.max_body_count
                         ))
                         process_id_start = time.time()
+
+                kinect_frame.reset(kinect.max_body_count)
 
                 if kinect.has_new_color_frame():
                     kinect_frame.set_color_width(kinect.color_frame_desc.Width)
@@ -391,7 +393,7 @@ if __name__ == '__main__':
                         process_id_end = time.time()
                         people_indexes = ["Reloading..."] * kinect.max_body_count
 
-                    if (round(time.time() - process_id_start) > monitoring_t + 1
+                    if (round(time.time() - process_id_start) > monitoring_t + 3
                             and not monitoring_process
                             and waiting_person_id):
                         waiting_person_id = False

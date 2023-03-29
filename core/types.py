@@ -123,6 +123,9 @@ class KinectFrame:
 
         self.__path = ""
 
+    def reset(self, max_body_count):
+        self.skeleton_frames = [None] * max_body_count
+
     def get_color_width(self):
         return self.__color_frame_width
 

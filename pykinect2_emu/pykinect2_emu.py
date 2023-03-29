@@ -4,6 +4,9 @@ import cv2 as cv2
 import numpy as np
 
 
+""" Kinect v2 emulator"""
+
+
 class ColorFrameDescription:
     def __init__(self, width=0, height=0):
         self.Width = width
@@ -56,7 +59,8 @@ class KinectEmulator:
         self.__body_data = self.__path_to_data + "/Body/FileSkeleton.txt"
         self.__color_data = self.__path_to_data + '/Color/person_stream.mp4'
         self.__frame_number = -1
-        self.color_frame_desc = ColorFrameDescription(width=self.KINECT_COLOR_WIDTH, height=self.KINECT_COLOR_HEIGHT)
+        self.color_frame_desc = ColorFrameDescription(width=self.KINECT_COLOR_WIDTH,
+                                                      height=self.KINECT_COLOR_HEIGHT)
         self.max_body_count = 6
         self.__color_coordinates = []
         self.__exceed_points = [7, 11, 15, 19, 21, 22, 23, 24]
