@@ -2,9 +2,10 @@ import logging
 import os
 from collections import deque
 from enum import Enum
+from core.measurements import knn
 from scipy.spatial import distance
 import numpy as np
-from scipy.spatial.distance import cdist
+
 from sklearn.metrics import pairwise_distances
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -76,16 +77,6 @@ def get_person_id(cur, stored):
                np.asarray(cur, dtype=np.float64), ro_values, 3)
 
 
-def count_max(classes):
-    counter = {}
-    for e in classes:
-        if e in counter:
-            counter[e] += 1
-        else:
-            counter[e] = 1
-    return max(counter, key=counter.get) if len(counter) > 0 else 'NoID'
-
-
 def get_profiles():
     with open(os.environ.get("profiles_path"), "r+") as file:
         profiles = []
@@ -101,23 +92,6 @@ def get_profiles():
         d = pairwise_distances(np.asarray(values))
         ro_values[name] = float(os.environ.get('alpha')) * np.max(d[np.triu_indices(d.shape[0], 1)])
     return profiles, profile_names, ro_values
-
-
-def knn(train_sample, train_answers, new_object, ro_values, k, metric='euclidean'):
-    d = cdist(
-        train_sample,
-        np.expand_dims(new_object, axis=1).T,
-        metric=metric
-    ).T
-    better_candidates = np.where(d < np.asarray([ro_values[name] for name in train_answers]))[1]
-    d = d[0][better_candidates]
-    train_answers = train_answers[better_candidates]
-    k = k if k < d.shape[0] else d.shape[0]
-    nn = np.sort(d)[:k]  # TODO: There no mistake
-    nn_args = np.argsort(d)[:k]
-    prob_classes = train_answers[nn_args]
-    # print(prob_classes)
-    return count_max(prob_classes)
 
 
 def get_database(file):

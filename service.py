@@ -332,7 +332,6 @@ if __name__ == '__main__':
                         ))
                         process_id_start = time.time()
 
-
                 if kinect.has_new_color_frame():
                     kinect_frame.set_color_width(kinect.color_frame_desc.Width)
                     kinect_frame.set_color_height(kinect.color_frame_desc.Height)
