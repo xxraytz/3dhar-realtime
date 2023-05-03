@@ -38,16 +38,12 @@ def get_train_params(x, y, classes):
         curr_x = x[np.where(y == class_id)[0]]
         ms[class_id] = np.mean(curr_x, axis=0)
         sko[class_id] = np.std(curr_x, axis=0)
-        curr_x = (curr_x - ms[class_id]) / sko[class_id]
         center[class_id] = np.mean(
             curr_x,
             axis=0)
+        curr_x = (curr_x - ms[class_id]) / sko[class_id]
         Ss[class_id] = np.cov(curr_x.T, rowvar=True)
     return ms, sko, Ss, center
-
-
-def most_common(lst):
-    return max(set(lst), key=lst.count)
 
 
 def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'):
@@ -65,3 +61,7 @@ def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'
             ])
         res.append(class_names[np.argmin(values)])
     return most_common(res)
+
+
+def most_common(lst):
+    return max(set(lst), key=lst.count)

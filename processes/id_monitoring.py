@@ -3,14 +3,20 @@ import os
 from collections import deque
 from enum import Enum
 from core.measurements import knn
+from core.measurements import calc_measure, get_train_params
 from scipy.spatial import distance
 import numpy as np
+from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
+from core.skeleton_zero_view import skeleton_correction
 
 from sklearn.metrics import pairwise_distances
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+DATABASE_HEIGHT = 1698
+VIDEO_HEIGHT = 1900
 
 
 class MState(Enum):
@@ -25,7 +31,7 @@ class MState(Enum):
 def identify(qm, config):
     skeletons = {}
     database = None
-    profiles = None
+    train_x, train_y = None, None
     while True:
 
         data = qm.get()
@@ -39,11 +45,13 @@ def identify(qm, config):
         elif state.value is MState.INIT_MONITORING.value:
             logger.info(state.value)
             database = get_database(os.environ.get('database_path'))
-            database = height_correction(database)
+            database = [el[:, :-1] for el in database]
+            database = height_correction(database, DATABASE_HEIGHT)
             database = align_on_the_floor(database)
             database = skeleton_overlay(database)
 
-            profiles = get_profiles()
+            train_x, train_y, _ = get_profiles()
+            train_x = train_x[:, [4, 10, 11, 15, 28]]
 
             for i in range(0, data[1]):
                 skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
@@ -59,14 +67,21 @@ def identify(qm, config):
             ids = ['NoID'] * len(skeletons)
             for i, sk_ind in enumerate(skeletons):
                 if len(skeletons[sk_ind]) > 10:
-                    video = height_correction(list(map(lambda x:
-                                                       list(map(lambda y: y.tolist(), x.player_coordinates)),
-                                                       skeletons[sk_ind])))
+                    video = list(map(lambda x:
+                                     np.asarray(list(map(lambda y: y.tolist(), x.player_coordinates))),
+                                     skeletons[sk_ind]))
+                    video = [el[:, :-1] for el in video]
+                    video = skeleton_correction(video)
+                    video = height_correction(video, VIDEO_HEIGHT)
                     video = align_on_the_floor(video)
                     video = skeleton_overlay(video)
                     dm = basic_assembly_metric(database, video)
-                    profile = np.median(dm, axis=1)
-                    ids[i] = get_person_id(profile, profiles)
+                    test_x = div_profiles(dm)
+                    test_x = test_x[:, [4, 10, 11, 15, 28]]
+                    # ids[i] = get_person_id(profile, database_profiles)
+                    classes = np.unique(train_y)
+                    ids[i] = calc_measure(test_x, *get_train_params(train_x, train_y, classes),
+                                          classes, measure='mahalanobis')
             qm.put(ids)
             break
 
@@ -77,6 +92,18 @@ def get_person_id(cur, stored):
                np.asarray(cur, dtype=np.float64), ro_values, 3)
 
 
+def div_profiles(dm):
+    t = 100
+    N = dm.shape[1] // t
+    dm = dm[:, :t * N]
+    points = dm.reshape([dm.shape[0], N, t])
+    profiles = []
+    for i in range(points.shape[1]):
+        video = points[:, i, :]
+        profiles.append(np.median(video, axis=1))
+    return np.asarray(profiles)
+
+
 def get_profiles():
     with open(os.environ.get("profiles_path"), "r+") as file:
         profiles = []
@@ -84,14 +111,14 @@ def get_profiles():
         file.readline()
         for line in file:
             profile_names.append(line.split(",")[:1][0])
-            profiles.append(line.split(',')[2:])
+            profiles.append(np.asarray(line.split(',')[2:], dtype=np.float32))
     ro_values = {}
     for name in set(profile_names):
         indexes = [index for index, value in enumerate(profile_names) if value == name]
         values = [profiles[i] for i in indexes]
-        d = pairwise_distances(np.asarray(values))
+        d = pairwise_distances(values)
         ro_values[name] = float(os.environ.get('alpha')) * np.max(d[np.triu_indices(d.shape[0], 1)])
-    return profiles, profile_names, ro_values
+    return np.asarray(profiles), np.asarray(profile_names), ro_values
 
 
 def get_database(file):
@@ -109,53 +136,3 @@ def get_database(file):
                     ])
                 video.append(skeleton.copy())
     return video
-
-
-def height_correction(sample_video):
-    if len(sample_video) == 32:
-        height = 1698
-    else:
-        height = 1900
-    for skeleton in sample_video:
-        for joint in skeleton:
-            joint[0] /= height
-            joint[1] /= height
-            joint[2] /= height
-    return sample_video
-
-
-def align_on_the_floor(sample_video):
-    for skeleton in sample_video:
-        d_y = np.inf
-        for joint in skeleton:
-            if d_y > joint[1]:
-                d_y = joint[1]
-        for joint in skeleton:
-            joint[1] -= d_y
-    return sample_video
-
-
-def skeleton_overlay(sample_video):
-    for skeleton in sample_video:
-        for i, joint in enumerate(skeleton):
-            if i != 0:
-                joint[0] -= skeleton[0][0]
-                joint[2] -= skeleton[0][2]
-        skeleton[0][0] = 0
-        skeleton[0][2] = 0
-    return sample_video
-
-
-def basic_assembly_metric(basic_assembly, video_sequence):
-    def skeletal_distance(s1, s2):
-        res = 0
-        for x, y in zip(s1, s2):
-            res += distance.euclidean(x[:-1], y[:-1])
-        return res / 17.
-
-    distance_matrix = np.zeros(shape=(32, 0))
-    for skeleton_frame in video_sequence:
-        d = np.asarray(list(map(lambda ba: skeletal_distance(ba, skeleton_frame), basic_assembly)))
-        d = np.expand_dims(d.T, axis=1)
-        distance_matrix = np.hstack([distance_matrix, d])
-    return distance_matrix
