@@ -44,7 +44,7 @@ def vec_prod(v1, v2):
 
 
 def get_angle(point1, point2, measure="rad"):
-    cosa = np.dot(point1, point2) / (np.linalg.norm(point1) * np.linalg.norm(point2))
+    cosa = np.dot(point1, point2) / (np.linalg.norm(point1) * np.linalg.norm(point2) + 1e-10)
     alpha = np.arccos(cosa)
     if measure == "rad":
         return alpha
@@ -96,7 +96,7 @@ def need_correction(v1, v2):
     v1 = np.asarray([a, 0, c])
     a, b, c = v2
     v2 = np.asarray([a, 0, c])
-    return v1, v2, np.sign(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
+    return v1, v2, np.sign(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-10))
 
 
 def get_move_direction(s1, s2):

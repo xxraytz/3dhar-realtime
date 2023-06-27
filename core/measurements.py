@@ -64,4 +64,4 @@ def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'
 
 
 def most_common(lst):
-    return max(set(lst), key=lst.count)
+    return max(set(lst), key=lst.count) if len(lst) > 0 else 'NoID'

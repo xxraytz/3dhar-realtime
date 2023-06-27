@@ -25,6 +25,7 @@ class MState(Enum):
     END_MONITORING = "end"
     GET_PERSON_ID = "get_id"
     CHECK_STATUS = "check_status"
+    GET_PEOPLE = "get_all_people"
     INIT_MONITORING = "initialization"
 
 
@@ -55,6 +56,9 @@ def identify(qm, config):
 
             for i in range(0, data[1]):
                 skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
+        elif state.value is MState.GET_PEOPLE.value:
+            logger.info(state.value)
+            logger.info(np.unique(train_y))
         elif state.value is MState.END_MONITORING.value:
             break
         elif state.value is MState.APPEND_MONITORING.value:
@@ -77,7 +81,10 @@ def identify(qm, config):
                     video = skeleton_overlay(video)
                     dm = basic_assembly_metric(database, video)
                     test_x = div_profiles(dm)
-                    test_x = test_x[:, [4, 10, 11, 15, 28]]
+                    try:
+                        test_x = test_x[:, [4, 10, 11, 15, 28]]
+                    except IndexError:
+                        print(test_x)
                     # ids[i] = get_person_id(profile, database_profiles)
                     classes = np.unique(train_y)
                     ids[i] = calc_measure(test_x, *get_train_params(train_x, train_y, classes),

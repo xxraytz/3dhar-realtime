@@ -269,12 +269,12 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-
-    with PyKinectRuntime.PyKinectRuntime(
-            PyKinectV2.FrameSourceTypes_Color
-            | PyKinectV2.FrameSourceTypes_Body
-            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+    with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+    #
+    # with PyKinectRuntime.PyKinectRuntime(
+    #         PyKinectV2.FrameSourceTypes_Color
+    #         | PyKinectV2.FrameSourceTypes_Body
+    #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
         kinect_frame = KinectFrame(kinect.max_body_count)
         kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
@@ -306,6 +306,10 @@ if __name__ == '__main__':
         queue_person_identification.put((
             MState.INIT_MONITORING,
             kinect.max_body_count
+        ))
+
+        queue_person_identification.put((
+            MState.GET_PEOPLE,
         ))
 
         process_id_start = time.time()
