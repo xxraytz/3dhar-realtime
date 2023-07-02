@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+from datetime import datetime
 
 import cv2
 import numpy as np
@@ -22,6 +23,7 @@ from core import types
 from core.types import SkeletonFrame
 from core.types import SvmWrapper
 from core.types import KinectFrame
+from core.types import KinectFrameReader
 
 from collections import deque
 
@@ -70,10 +72,10 @@ class Call(Enum):
 
 
 def get_max_height(coordinates):
-    max_height = coordinates[SKELETON_USABLE_JOINTS_NUMBER.get("Head")].y + SKELETON_HEIGHTS_CORRECTION
+    max_height = coordinates[SKELETON_USABLE_JOINTS_NUMBER["Head"]].y + SKELETON_HEIGHTS_CORRECTION
 
     for frame in skeleton_frames:
-        h = frame.get_coordinates()[SKELETON_USABLE_JOINTS_NUMBER.get("Head")].y + SKELETON_HEIGHTS_CORRECTION
+        h = frame.get_coordinates()[SKELETON_USABLE_JOINTS_NUMBER["Head"]].y + SKELETON_HEIGHTS_CORRECTION
         if h > max_height:
             max_height = h
 
@@ -230,23 +232,54 @@ logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s',
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='config.json', help='JSON config')
-    parser.add_argument('-v', default=1, help='Kinect data visualisation')
-    args = parser.parse_args()
 
-    logger.info(f'Load config from {args.config}')
-
+def get_config(args):
+    global EXCLUDE_SKELETON_DISTANCES, SKELETON_COLORS, SKELETON_USABLE_JOINTS_NUMBER, SKELETON_LINES, SKELETON_POINTS_COUNT, SKELETON_HEIGHTS_CORRECTION
     with open(args.config, 'r') as stream:
         config = json.load(stream)
         EXCLUDE_SKELETON_DISTANCES = config["EXCLUDE_SKELETON_DISTANCES"]
         SKELETON_COLORS = config["SKELETON_COLORS"]
         SKELETON_USABLE_JOINTS_NUMBER = config["SKELETON_USABLE_JOINTS_NUMBER"]
+        SKELETON_USABLE_JOINTS_NUMBER = dict(
+            sorted(
+                SKELETON_USABLE_JOINTS_NUMBER.items(),
+                key=lambda x: x[1]
+            )
+        )
         SKELETON_LINES = config["SKELETON_LINES"]
         SKELETON_POINTS_COUNT = config["SKELETON_POINTS_COUNT"]
         SKELETON_HEIGHTS_CORRECTION = config["SKELETON_HEIGHTS_CORRECTION"]
     config = args.config
+    return config
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='config.json', help='JSON config')
+    parser.add_argument('-v', default=1, help='Kinect data visualisation')
+    return parser.parse_args()
+
+
+def create_store_directory(file):
+    if not os.path.isdir(file):
+        os.mkdir(file)
+    path = file + f'Scene_{datetime.now().date()}_' \
+                         f'{datetime.now().time().hour}-' \
+                         f'{datetime.now().time().minute}-' \
+                         f'{datetime.now().time().second}' + "/"
+    os.mkdir(path)
+    os.mkdir(path + "Body/")
+    os.mkdir(path + "Color/")
+    os.mkdir(path + "Depth/")
+    return path
+
+
+if __name__ == '__main__':
+    args = parse_arguments()
+
+    logger.info(f'Load config from {args.config}')
+
+    config = get_config(args)
 
     queue_video_recording = Queue()
     process_video_recording = Process(target=send_preprocessing, args=(queue_video_recording, config))
@@ -265,20 +298,19 @@ if __name__ == '__main__':
     # process_print.join()
     # print("End.")
     # exit(0)
+
     visual = args.v
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
     with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-    #
-    # with PyKinectRuntime.PyKinectRuntime(
-    #         PyKinectV2.FrameSourceTypes_Color
-    #         | PyKinectV2.FrameSourceTypes_Body
-    #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
-
-        kinect_frame = KinectFrame(kinect.max_body_count)
-        kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/')
-        kinect_frame.create_directory()
+        #
+        # with PyKinectRuntime.PyKinectRuntime(
+        #         PyKinectV2.FrameSourceTypes_Color
+        #         | PyKinectV2.FrameSourceTypes_Body
+        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        kinect_device = KinectFrameReader(kinect)
+        store_directory = create_store_directory(f'recs/{os.environ.get("test_person_name")}/')
         bodies = None
 
         if visual == '1':
@@ -292,8 +324,8 @@ if __name__ == '__main__':
         time.sleep(2)
 
         queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
-            kinect_frame.get_path(),
-            (kinect.color_frame_desc.Width, kinect.color_frame_desc.Height)
+            store_directory,
+            kinect_device.get_color_size()
         ]))
 
         id_delay = 5  # in sec
@@ -302,21 +334,17 @@ if __name__ == '__main__':
         queue_person_identification = Queue()
         process_person_identification = Process(target=identify, args=(queue_person_identification, config))
         process_person_identification.start()
-        queue_person_identification.put(MState.CHECK_STATUS)
-        queue_person_identification.put((
-            MState.INIT_MONITORING,
-            kinect.max_body_count
-        ))
 
-        queue_person_identification.put((
-            MState.GET_PEOPLE,
-        ))
+        queue_person_identification.put(MState.CHECK_STATUS)
+        queue_person_identification.put((MState.INIT_MONITORING, kinect.max_body_count))
+        queue_person_identification.put((MState.GET_PEOPLE,))
 
         process_id_start = time.time()
         process_id_end = -1
         people_indexes = ['NoID'] * kinect.max_body_count
         monitoring_process = True
         waiting_person_id = True
+
         while not terminate:
             time.sleep(KINECT_FREQUENCY)
             if True:
@@ -332,58 +360,45 @@ if __name__ == '__main__':
                         queue_person_identification.put(MState.CHECK_STATUS)
                         queue_person_identification.put((
                             MState.INIT_MONITORING,
-                            kinect.max_body_count
+                            kinect_device.get_max_body_count()
                         ))
                         process_id_start = time.time()
 
-                if kinect.has_new_color_frame():
-                    kinect_frame.set_color_width(kinect.color_frame_desc.Width)
-                    kinect_frame.set_color_height(kinect.color_frame_desc.Height)
-                    kinect_frame.color_frame = kinect.get_last_color_frame()
+                kinect_frame = KinectFrame(kinect_device.get_max_body_count())
+                kinect_frame.set_color_frame(kinect_device.get_color_frame())
 
-                if kinect.has_new_body_frame():
-                    bodies = kinect.get_last_body_frame()
-
-                if bodies is not None:
-                    next_frame = False
+                if kinect_device.set_bodies():
                     have_bodies = False
-                    for i in range(0, kinect.max_body_count):
-                        body = bodies.bodies[i]
-
-                        if not body.is_tracked:
-                            kinect_frame.skeleton_frames[i] = None
+                    for body_index in range(0, kinect_device.get_max_body_count()):
+                        if kinect_device.is_body_tracked(body_index):
                             continue
 
                         have_bodies = True
-                        next_frame = True
-                        joints = body.joints  # Joints in a skeleton space
-                        joints_color_space = kinect.body_joints_to_color_space(joints)
+
+                        joints_skeleton_space = kinect_device.get_joints(body_index)  # Joints in a skeleton space
+                        joints_color_space = kinect_device.get_color_space_joints(body_index)
+
                         player_coordinates = []
                         player_screen_coordinates = []
 
-                        SKELETON_USABLE_JOINTS_NUMBER = dict(
-                            sorted(
-                                SKELETON_USABLE_JOINTS_NUMBER.items(),
-                                key=lambda x: x[1]
-                            )
-                        )
                         for j in SKELETON_USABLE_JOINTS_NUMBER.values():
-                            player_coordinates.append(
-                                types.Joint(joints[j].Position.x * 1000, joints[j].Position.y * 1000,
-                                            joints[j].Position.z * 1000, joints[j].TrackingState))
+                            player_coordinates.append(types.Joint(*joints_skeleton_space[j]))
 
-                            if math.isinf(joints_color_space[j].x) and math.isinf(joints_color_space[j].y):
-                                player_screen_coordinates.append(types.ScreenJoint(0, 0))
-                            else:
-                                player_screen_coordinates.append(types.ScreenJoint(int(joints_color_space[j].x),
-                                                                                   int(joints_color_space[j].y)))
+                            player_screen_coordinates.append(types.ScreenJoint(*joints_color_space[j]))
 
-                        kinect_frame.skeleton_frames[i] = SkeletonFrame(player_coordinates, player_screen_coordinates)
-                        if kinect_frame.skeleton_frames[i] is not None:
-                            kinect_frame.skeleton_frames[i].set_id(people_indexes[i])
+                        kinect_frame.skeleton_frames[body_index] = SkeletonFrame(player_coordinates,
+                                                                                 player_screen_coordinates)
+                        kinect_frame.skeleton_frames[body_index].set_id(people_indexes[body_index])
+
+
+
+
+
+
+
 
                     if visual == '1':
-                        queue_video_streaming.put({i: kinect_frame})
+                        queue_video_streaming.put({body_index: kinect_frame})
                     if len(kinect_frame.skeleton_frames) > 0 and monitoring_process:
                         # queue_video_recording.put((Call.VIDEO_STREAMING, [
                         #     kinect_frame.skeleton_frames,
@@ -404,7 +419,7 @@ if __name__ == '__main__':
                         ids = queue_person_identification.get()
                         for j, person_id in enumerate(ids):
                             people_indexes[j] = person_id
-                        print(people_indexes)
+                        logger.info(people_indexes)
                         process_person_identification.terminate()
 
                     if process_video_streaming.exitcode is not None:
@@ -417,10 +432,10 @@ if __name__ == '__main__':
                         process_person_identification.join()
                         process_video_streaming.join()
                         terminate = True
-                    elif i == 5 and not have_bodies:
-                        queue_video_streaming.put({i: kinect_frame})
+                    elif body_index == 5 and not have_bodies:
+                        queue_video_streaming.put({body_index: kinect_frame})
 
-                    if next_frame:
+                    if have_bodies:
                         frame_count += 1
 
     # Close Kinect sensor, close the window and quit.

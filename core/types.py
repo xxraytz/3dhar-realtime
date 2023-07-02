@@ -1,8 +1,8 @@
-import os
+import math
 from typing import NamedTuple
 from svm.svc_addon import Svc
 from svm.one_class_addon import OneClass
-from datetime import datetime
+from pykinect2_emu.pykinect2_emu import KinectEmulator
 
 
 class ScreenJoint(NamedTuple):
@@ -22,8 +22,6 @@ class Joint(NamedTuple):
         return [
             self.x, self.y, self.z, float(self.state)
         ]
-
-
 
 
 class SkeletonFrame:
@@ -48,7 +46,6 @@ class SkeletonFrame:
 
 
 class SvmWrapper:
-
     __path = ""
     __model_main = None
     __model_ourliers = None
@@ -71,7 +68,7 @@ class SvmWrapper:
     def get_instance(self):
         pass
 
-    def classify(self, svm_vector:list):
+    def classify(self, svm_vector: list):
         """
 
         :param svm_vector:
@@ -112,8 +109,8 @@ class SvmWrapper:
 
 class KinectFrame:
 
-    def __init__(self, max_body_count):
-        self.color_frame = []
+    def __init__(self, max_body_count, color_frame=None):
+        self.color_frame = color_frame
         self.depth_frame = []
         self.skeleton_frames = [None] * max_body_count
         self.__depth_frame_height = 0
@@ -138,6 +135,10 @@ class KinectFrame:
     def get_depth_height(self):
         return self.__depth_frame_height
 
+    def set_color_frame(self, color_frame):
+        self.__color_frame_width, self.__color_frame_height = color_frame.shape[:2][::-1]
+        self.color_frame = color_frame
+
     def set_color_width(self, value):
         self.__color_frame_width = value
 
@@ -150,26 +151,70 @@ class KinectFrame:
     def set_depth_height(self, value):
         self.__depth_frame_height = value
 
-    def create_directory(self):
-        os.mkdir(self.__path)
-        os.mkdir(self.__path + "Body/")
-        os.mkdir(self.__path + "Color/")
-        os.mkdir(self.__path + "Depth/")
+    # def save_fall_statements(self):
+    #     filename = self.__path + "falls.txt"
+    #     with open(filename, "a+", encoding="utf-8") as f:
+    #         f.write("Fall_start " + str(self.start_fall) + ", Fall_end: " + str(self.end_fall) + "\n")
+    #         self.start_fall = -1
+    #         self.end_fall = -1
 
-    def set_path(self, file):
-        if not os.path.isdir(file):
-            os.mkdir(file)
-        self.__path = file + f'Scene_{datetime.now().date()}_' \
-                             f'{datetime.now().time().hour}-' \
-                             f'{datetime.now().time().minute}-'\
-                             f'{datetime.now().time().second}' + "/"
 
-    def get_path(self):
-        return self.__path
+class KinectFrameReader:
+    def __init__(self, kinect : KinectEmulator):
+        self.kinect = kinect
+        self.bodies = None
 
-    def save_fall_statements(self):
-        filename = self.__path + "falls.txt"
-        with open(filename, "a+", encoding="utf-8") as f:
-            f.write("Fall_start " + str(self.start_fall) + ", Fall_end: " + str(self.end_fall) + "\n")
-            self.start_fall = -1
-            self.end_fall = -1
+    def get_max_body_count(self):
+        return self.kinect.max_body_count
+
+    def get_color_size(self):
+        return self.kinect.color_frame_desc.Width, self.kinect.color_frame_desc.Height
+
+    def has_color_frame(self):
+        return self.kinect.has_new_color_frame()
+
+    def has_body(self):
+        return self.kinect.has_new_body_frame()
+
+    def get_body_frame(self):
+        return self.kinect.get_last_body_frame()
+
+    def get_color_frame(self):
+        if self.has_color_frame():
+            return self.kinect.get_last_color_frame()
+        else:
+            return None
+
+    def set_bodies(self):
+        if self.has_body():
+            self.bodies = self.get_body_frame()
+            return True
+
+    def get_bodies(self):
+        return self.bodies.bodies
+
+    def get_body(self, index):
+        return self.bodies.bodies[index]
+
+    def is_body_tracked(self, index):
+        return self.bodies.bodies[index].is_tracked
+
+    def get_joints(self, index):
+
+        joints = []
+        for joint in self.bodies.bodies[index].joints:
+            joints.append([joint.Position.x * 1e3,
+                           joint.Position.y * 1e3,
+                           joint.Position.z * 1e3,
+                           joint.TrackingState])
+
+        return joints
+
+    def get_color_space_joints(self, index):
+        joints = []
+        for joint in self.kinect.body_joints_to_color_space(self.get_body(index).joints):
+            if math.isinf(joint.x) and math.isinf(joint.y):
+                joints.append([0,0])
+            else:
+                joints.append([int(joint.x), int(joint.y)])
+        return joints
