@@ -1,7 +1,9 @@
 import math
+import time
 from typing import NamedTuple
 from svm.svc_addon import Svc
 from svm.one_class_addon import OneClass
+from multiprocessing import Queue, Process
 from pykinect2_emu.pykinect2_emu import KinectEmulator
 
 
@@ -218,3 +220,53 @@ class KinectFrameReader:
             else:
                 joints.append([int(joint.x), int(joint.y)])
         return joints
+
+
+class PersonIdentification:
+    def __init__(self, id_delay, t_monitoring):
+        self.__delay = id_delay
+        self.__t = t_monitoring
+        self.__start_time = 0.
+        self.__end_time = -1.
+        self.__monitoring_process = True
+        self.__waiting_person_id = True
+
+        self.__queue_person_identification = Queue()
+
+
+    def is_monitoring(self):
+        return self.__monitoring_process
+
+    def is_waiting_for_identification(self):
+        return self.__waiting_person_id
+
+    def stop_waiting_for_identification(self):
+        self.__waiting_person_id = False
+
+    def stop_monitoring(self):
+        self.__monitoring_process = False
+        self.__end_time = time.time()
+
+    def start_id(self):
+        self.__start_time = time.time()
+        self.__monitoring_process = True
+        self.__waiting_person_id = True
+
+    def get_delay(self):
+        return self.__delay
+
+    def get_monitoring_period(self):
+        return self.__t
+
+    def is_delay_has_passed(self):
+        return (time.time() - self.__end_time) > self.__delay
+
+    def is_monitoring_time_passed(self):
+        return round(time.time() - self.__start_time) > self.__t and self.is_monitoring()
+
+    def is_identification_delay_passed(self):
+        post_monitoring_delay = 4
+        return (round(time.time() - self.__start_time) > self.__t + post_monitoring_delay
+                and not self.is_monitoring()
+                and self.is_waiting_for_identification())
+

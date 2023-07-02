@@ -24,6 +24,7 @@ from core.types import SkeletonFrame
 from core.types import SvmWrapper
 from core.types import KinectFrame
 from core.types import KinectFrameReader
+from core.types import PersonIdentification
 
 from collections import deque
 
@@ -303,6 +304,8 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
+    person_identification = PersonIdentification(id_delay=5, t_monitoring=10)
+
     with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
         #
         # with PyKinectRuntime.PyKinectRuntime(
@@ -328,9 +331,6 @@ if __name__ == '__main__':
             kinect_device.get_color_size()
         ]))
 
-        id_delay = 5  # in sec
-        monitoring_t = 10
-
         queue_person_identification = Queue()
         process_person_identification = Process(target=identify, args=(queue_person_identification, config))
         process_person_identification.start()
@@ -339,30 +339,23 @@ if __name__ == '__main__':
         queue_person_identification.put((MState.INIT_MONITORING, kinect.max_body_count))
         queue_person_identification.put((MState.GET_PEOPLE,))
 
-        process_id_start = time.time()
-        process_id_end = -1
+        person_identification.start_id()
+
         people_indexes = ['NoID'] * kinect.max_body_count
-        monitoring_process = True
-        waiting_person_id = True
 
         while not terminate:
             time.sleep(KINECT_FREQUENCY)
             if True:
 
-                if not monitoring_process:
-                    if (time.time() - process_id_end) > id_delay:
-                        print('Once again')
-                        monitoring_process = True
-                        waiting_person_id = True
+                if not person_identification.is_monitoring():
+                    if person_identification.is_delay_has_passed():
                         process_person_identification = Process(target=identify,
                                                                 args=(queue_person_identification, config))
                         process_person_identification.start()
+
                         queue_person_identification.put(MState.CHECK_STATUS)
-                        queue_person_identification.put((
-                            MState.INIT_MONITORING,
-                            kinect_device.get_max_body_count()
-                        ))
-                        process_id_start = time.time()
+                        queue_person_identification.put((MState.INIT_MONITORING, kinect_device.get_max_body_count()))
+                        person_identification.start_id()
 
                 kinect_frame = KinectFrame(kinect_device.get_max_body_count())
                 kinect_frame.set_color_frame(kinect_device.get_color_frame())
@@ -390,31 +383,23 @@ if __name__ == '__main__':
                                                                                  player_screen_coordinates)
                         kinect_frame.skeleton_frames[body_index].set_id(people_indexes[body_index])
 
-
-
-
-
-
-
-
                     if visual == '1':
                         queue_video_streaming.put({body_index: kinect_frame})
-                    if len(kinect_frame.skeleton_frames) > 0 and monitoring_process:
+
+                    if len(kinect_frame.skeleton_frames) > 0 and person_identification.is_monitoring():
                         # queue_video_recording.put((Call.VIDEO_STREAMING, [
                         #     kinect_frame.skeleton_frames,
                         #     kinect_frame.color_frame,
                         # ]))
                         queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
-                    if round(time.time() - process_id_start) > monitoring_t and monitoring_process:
+
+                    if person_identification.is_monitoring_time_passed():
                         queue_person_identification.put(MState.GET_PERSON_ID)
-                        monitoring_process = False
-                        process_id_end = time.time()
+                        person_identification.stop_monitoring()
                         people_indexes = ["Reloading..."] * kinect.max_body_count
 
-                    if (round(time.time() - process_id_start) > monitoring_t + 4
-                            and not monitoring_process
-                            and waiting_person_id):
-                        waiting_person_id = False
+                    if person_identification.is_identification_delay_passed():
+                        person_identification.stop_waiting_for_identification()
                         process_person_identification.join()
                         ids = queue_person_identification.get()
                         for j, person_id in enumerate(ids):
@@ -423,7 +408,6 @@ if __name__ == '__main__':
                         process_person_identification.terminate()
 
                     if process_video_streaming.exitcode is not None:
-
                         while not queue_video_streaming.qsize() == 0:
                             queue_video_streaming.get()
                         queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
