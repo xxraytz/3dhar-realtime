@@ -3,10 +3,10 @@ import time
 from typing import NamedTuple
 
 from multiprocessing import Queue, Process
+
 from pykinect2_emu.pykinect2_emu import KinectEmulator
 from processes.id_monitoring import identify, MState
 from processes.fall_event import send_preprocessing, Call
-# from processes.paint import paint
 
 
 class SJoints(NamedTuple):
@@ -218,9 +218,9 @@ class PersonIdentification:
                                                                               self.__conf))
         self.__process_person_identification.start()
 
-        self.__queue_person_identification.put(MState.CHECK_STATUS)
-        self.__queue_person_identification.put((MState.INIT_MONITORING, self.__bodies_count))
-        self.__queue_person_identification.put((MState.GET_PEOPLE,))
+        # self.__queue_person_identification.put(MState.CHECK_STATUS)
+        # self.__queue_person_identification.put((MState.INIT_MONITORING, self.__bodies_count))
+        # self.__queue_person_identification.put((MState.GET_PEOPLE,))
 
     def get_delay(self):
         return self.__delay
@@ -279,16 +279,25 @@ class VideoRecorder:
 
 
 class VideoStreaming:
-    def __init__(self, conf, paint):
+    def __init__(self, conf, paint, signal_function, call_modes):
         self.__queue_video_streaming = Queue()
+        self.__call_modes = call_modes
+        self.__signal_function = signal_function
         self.__process_video_streaming = Process(target=paint, args=(self.__queue_video_streaming,
                                                                      conf))
+        self.__is_init = False
 
     def start_streaming(self):
         self.__process_video_streaming.start()
+        print('start stream')
+        self.__queue_video_streaming.put((self.__call_modes.INIT, None))
+        print('inited1')
+        self.__is_init = True
 
     def put_frame(self, frame):
-        self.__queue_video_streaming.put(frame)
+        if self.__is_init:
+            print('put stream')
+            self.__queue_video_streaming.put((self.__call_modes.PUT, frame))
 
     def is_streaming_stopped(self):
         return self.__process_video_streaming.exitcode is not None

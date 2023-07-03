@@ -22,6 +22,12 @@ from core.types import PersonIdentification
 from core.types import Joint, SJoints
 from processes.paint import paint
 
+import sys
+from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton
+from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent
+from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal
+
+
 # CONSTANTS
 KINECT_FREQUENCY = 0.033
 SKELETON_POINTS_COUNT: int
@@ -102,49 +108,66 @@ logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s',
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-if __name__ == '__main__':
-    args = parse_arguments()
 
-    logger.info(f'Load config from {args.config}')
-    logger.info(f'Starting service...')
-    logger.info(f'Connecting to Microsoft Kinect v2')
+class VideoThread(QThread):
+    change_pixmap_signal = pyqtSignal(np.ndarray)
 
-    config = get_config(args)
-    visual = args.v
+    def __init__(self):
+        super().__init__()
+        self._run_flag = True
+        self._pause_flag = False
 
-    video_recorder = VideoRecorder(config)
-    video_recorder.start_recording()
+    def run(self):
+        self.human_reco_service()
+        # cap = cv2.VideoCapture(0)
+        # while self._run_flag:
+        #     if not self._pause_flag:
+        #         ret, cv_image = cap.read()
+        #         if ret:
+        #             self.change_pixmap_signal.emit(cv_image)  # type: ignore
+        # cap.release()
 
-    person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies_count=6, conf=config)
+    def human_reco_service(self):
+        args = parse_arguments()
 
-    terminate = False
+        logger.info(f'Load config from {args.config}')
+        logger.info(f'Starting service...')
+        logger.info(f'Connecting to Microsoft Kinect v2')
 
-    # capture_picture()
+        config = get_config(args)
+        visual = args.v
 
-    with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        #
-        # with PyKinectRuntime.PyKinectRuntime(
-        #         PyKinectV2.FrameSourceTypes_Color
-        #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        video_recorder = VideoRecorder(config)
+        video_recorder.start_recording()
 
-        kinect_device = KinectFrameReader(kinect)
+        person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies_count=6, conf=config)
 
-        if visual == VisualMode.VIDEO.value:
-            video_streaming = VideoStreaming(config, paint)
-            video_streaming.start_streaming()
+        # capture_picture()
 
-        time.sleep(2)
+        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+            #
+            # with PyKinectRuntime.PyKinectRuntime(
+            #         PyKinectV2.FrameSourceTypes_Color
+            #         | PyKinectV2.FrameSourceTypes_Body
+            #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
-        video_recorder.open_recording_stream(create_store_directory(f'recs/{os.environ.get("test_person_name")}/'),
-                                             kinect_device.get_color_size())
+            kinect_device = KinectFrameReader(kinect)
 
-        person_identification.start_id()
+            if visual == VisualMode.VIDEO.value:
+                from processes.paint import Call
+                video_streaming = VideoStreaming(config, paint, self.change_pixmap_signal,
+                                                 Call)
+                video_streaming.start_streaming()
 
-        while not terminate:
-            time.sleep(KINECT_FREQUENCY)
-            if True:
+            time.sleep(2)
 
+            video_recorder.open_recording_stream(create_store_directory(f'recs/{os.environ.get("test_person_name")}/'),
+                                                 kinect_device.get_color_size())
+
+            person_identification.start_id()
+
+            while self._run_flag:
+                time.sleep(KINECT_FREQUENCY)
                 if not person_identification.is_monitoring_blocked():
                     person_identification.start_id()
 
@@ -185,9 +208,70 @@ if __name__ == '__main__':
                         video_recorder.close_recording_stream()
                         person_identification.exit()
                         video_streaming.close_streaming()
-                        terminate = True
+                        self._run_flag = False
 
-    # Close Kinect sensor, close the window and quit.
-    logger.info(f'Microsoft Kinect v2 was disconnected')
-    logger.info(f'Stopping service...')
-    logger.info(f'Service stopped.')
+        # Close Kinect sensor, close the window and quit.
+        logger.info(f'Microsoft Kinect v2 was disconnected')
+        logger.info(f'Stopping service...')
+        logger.info(f'Service stopped.')
+
+    def stop(self):
+        self._run_flag = False
+        self.wait()
+
+    def pause(self):
+        self._pause_flag = not self._pause_flag
+
+
+class App(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("OpenCV video demo")
+        self.size = (640, 480)
+        self.image_label = QLabel(self)
+        self.image_label.resize(*self.size)
+        self.text_label = QLabel('OpenCV demo')
+        self.pause_button = QPushButton()
+        self.pause_button.setText('pause')
+        self.pause_button.setFixedWidth(300)
+        self.pause_button.clicked.connect(self.pause)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.image_label)
+        vbox.addWidget(self.text_label)
+        vbox.addWidget(self.pause_button)
+        self.setLayout(vbox, )
+        grey_image = QPixmap(*self.size)
+        grey_image.fill(QColor('grey'))
+        self.image_label.setPixmap(grey_image)
+
+        self.thread = VideoThread()
+        self.thread.change_pixmap_signal.connect(self.update_image)  # type: ignore
+        self.thread.start()
+
+    def pause(self):
+        self.thread.pause()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.thread.stop()
+        event.accept()
+
+    def convert_cv_qt(self, cv_img):
+        rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        converted_image = QImage(rgb_image, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+        scaled_converted_image = converted_image.scaled(*self.size, Qt.AspectRatioMode.KeepAspectRatio)
+        return QPixmap.fromImage(scaled_converted_image)
+
+    @pyqtSlot(np.ndarray)
+    def update_image(self, cv_image):
+        qt_image = self.convert_cv_qt(cv_image)
+        self.image_label.setPixmap(qt_image)
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    a = App()
+    a.show()
+    sys.exit(app.exec())
