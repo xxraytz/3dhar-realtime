@@ -17,12 +17,13 @@ from pykinect2 import PyKinectV2, PyKinectRuntime
 
 # from core import types
 from core.types import SkeletonFrame, VideoRecorder, VideoStreaming
-from core.types import SvmWrapper
+from core.classification import SvmWrapper
 from core.types import KinectFrame
 from core.types import KinectFrameReader
 from core.types import PersonIdentification
 from core.types import Joint, ScreenJoint
 from processes.paint import paint
+
 
 
 # CONSTANTS
@@ -313,10 +314,7 @@ if __name__ == '__main__':
 
         if visual == VisualMode.VIDEO.value:
             video_streaming = VideoStreaming(config, paint)
-            # queue_video_streaming = Queue()
-            # process_video_streaming = Process(target=paint, args=(queue_video_streaming, config))
             video_streaming.start_streaming()
-            # process_video_streaming.start()
 
         skeleton_frame = None
 
@@ -324,10 +322,6 @@ if __name__ == '__main__':
         time.sleep(2)
 
         video_recorder.open_recording_stream(store_directory, kinect_device.get_color_size())
-        # queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
-        #     store_directory,
-        #     kinect_device.get_color_size()
-        # ]))
 
         person_identification.start_id()
 
@@ -363,7 +357,6 @@ if __name__ == '__main__':
 
                     if visual == VisualMode.VIDEO.value:
                         video_streaming.put_frame({body_index: kinect_frame})
-                        # queue_video_streaming.put({body_index: kinect_frame})
 
                     if person_identification.is_monitoring():
                         person_identification.append_frame(kinect_frame.skeleton_frames)
@@ -376,14 +369,9 @@ if __name__ == '__main__':
 
                     if video_streaming.is_streaming_stopped():
                         video_streaming.clear_streaming()
-                        # while queue_video_streaming.qsize():
-                        #     queue_video_streaming.get()
                         video_recorder.close_recording_stream()
-                        # queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
                         person_identification.exit()
-                        # process_video_recording.join()
                         video_streaming.close_streaming()
-                        # process_video_streaming.join()
                         terminate = True
                     # elif body_index == 5 and not have_bodies:  # What is it?
                     #     queue_video_streaming.put({body_index: kinect_frame})
