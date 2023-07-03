@@ -9,7 +9,7 @@ from processes.fall_event import send_preprocessing, Call
 # from processes.paint import paint
 
 
-class ScreenJoint(NamedTuple):
+class SJoints(NamedTuple):
     """Coordinates for paint skeleton joints on a screen"""
     x: int = 0
     y: int = 0

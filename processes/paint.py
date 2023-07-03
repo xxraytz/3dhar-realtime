@@ -1,5 +1,5 @@
 import json
-from core.types import ScreenJoint
+from core.types import SJoints
 from core.types import KinectFrame
 import cv2 as cv2
 import numpy as np
@@ -45,12 +45,12 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
                 else:
                     id_rgb = (96, 230, 0)
                 for line in skeleton_lines:
-                    if not (screen_coordinates[line[0]] == ScreenJoint(0, 0)
-                            or screen_coordinates[line[1]] == ScreenJoint(0, 0)):
+                    if not (screen_coordinates[line[0]] == SJoints(0, 0)
+                            or screen_coordinates[line[1]] == SJoints(0, 0)):
                         cv2.line(color_image,
                                  screen_coordinates[line[0]], screen_coordinates[line[1]], (255, 150, 0), 9)
                     for joint in screen_coordinates:
-                        if joint != ScreenJoint(0, 0):
+                        if joint != SJoints(0, 0):
                             cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
                             cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
                     cv2.putText(color_image, f"{i}. {person_id}",
