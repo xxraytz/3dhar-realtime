@@ -9,24 +9,21 @@ import cv2
 import numpy as np
 import time
 from enum import Enum
-from multiprocessing import Queue, Process
 
 from pykinect2_emu.pykinect2_emu import KinectEmulator
-from processes.paint import paint
-from processes.fall_event import send_preprocessing
-from processes.id_monitoring import identify, MState
 
 import comtypes
 from pykinect2 import PyKinectV2, PyKinectRuntime
 
-from core import types
-from core.types import SkeletonFrame
+# from core import types
+from core.types import SkeletonFrame, VideoRecorder, VideoStreaming
 from core.types import SvmWrapper
 from core.types import KinectFrame
 from core.types import KinectFrameReader
 from core.types import PersonIdentification
+from core.types import Joint, ScreenJoint
+from processes.paint import paint
 
-from collections import deque
 
 # CONSTANTS
 KINECT_FREQUENCY = 0.033
@@ -287,29 +284,21 @@ if __name__ == '__main__':
 
     config = get_config(args)
 
-    queue_video_recording = Queue()
-    process_video_recording = Process(target=send_preprocessing, args=(queue_video_recording, config))
-    process_video_recording.start()
+    video_recorder = VideoRecorder(config)
 
-    # queue_video_recording.put(Call.LOGIN)
+    video_recorder.start_recording()
 
     # logger.info('Kinect color image saving...')
     # capture_picture()
     # logger.info('Kinect color image saved.')
 
-    # queue_print.put(Call.TEST)
-    # queue_print.put(Call.EXIT)
-    # while queue_print.qsize() != 0:
-    #     pass
-    # process_print.join()
-    # print("End.")
     # exit(0)
 
     visual = args.v
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies=6, conf=config)
+    person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies_count=6, conf=config)
 
     with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
         #
@@ -317,28 +306,30 @@ if __name__ == '__main__':
         #         PyKinectV2.FrameSourceTypes_Color
         #         | PyKinectV2.FrameSourceTypes_Body
         #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+
         kinect_device = KinectFrameReader(kinect)
         store_directory = create_store_directory(f'recs/{os.environ.get("test_person_name")}/')
         bodies = None
 
         if visual == VisualMode.VIDEO.value:
-            queue_video_streaming = Queue()
-            process_video_streaming = Process(target=paint, args=(queue_video_streaming, config))
-            process_video_streaming.start()
+            video_streaming = VideoStreaming(config, paint)
+            # queue_video_streaming = Queue()
+            # process_video_streaming = Process(target=paint, args=(queue_video_streaming, config))
+            video_streaming.start_streaming()
+            # process_video_streaming.start()
 
         skeleton_frame = None
 
         frame_count = 0
         time.sleep(2)
 
-        queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
-            store_directory,
-            kinect_device.get_color_size()
-        ]))
+        video_recorder.open_recording_stream(store_directory, kinect_device.get_color_size())
+        # queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
+        #     store_directory,
+        #     kinect_device.get_color_size()
+        # ]))
 
         person_identification.start_id()
-
-        people_indexes = ['NoID'] * kinect.max_body_count
 
         while not terminate:
             time.sleep(KINECT_FREQUENCY)
@@ -351,12 +342,9 @@ if __name__ == '__main__':
                 kinect_frame.set_color_frame(kinect_device.get_color_frame())
 
                 if kinect_device.set_bodies():
-                    have_bodies = False
                     for body_index in range(0, kinect_device.get_max_body_count()):
-                        if kinect_device.is_body_tracked(body_index):
+                        if not kinect_device.is_body_tracked(body_index):
                             continue
-
-                        have_bodies = True
 
                         joints_skeleton_space = kinect_device.get_joints(body_index)  # Joints in a skeleton space
                         joints_color_space = kinect_device.get_color_space_joints(body_index)
@@ -365,40 +353,42 @@ if __name__ == '__main__':
                         player_screen_coordinates = []
 
                         for j in SKELETON_USABLE_JOINTS_NUMBER.values():
-                            player_coordinates.append(types.Joint(*joints_skeleton_space[j]))
-
-                            player_screen_coordinates.append(types.ScreenJoint(*joints_color_space[j]))
+                            player_coordinates.append(Joint(*joints_skeleton_space[j]))
+                            player_screen_coordinates.append(ScreenJoint(*joints_color_space[j]))
 
                         kinect_frame.skeleton_frames[body_index] = SkeletonFrame(player_coordinates,
-                                                                                 player_screen_coordinates)
-                        kinect_frame.skeleton_frames[body_index].set_id(people_indexes[body_index])
+                                                                                 player_screen_coordinates,
+                                                                                 person_identification.get_body_id(
+                                                                                     body_index))
 
                     if visual == VisualMode.VIDEO.value:
-                        queue_video_streaming.put({body_index: kinect_frame})
+                        video_streaming.put_frame({body_index: kinect_frame})
+                        # queue_video_streaming.put({body_index: kinect_frame})
 
-                    # if not kinect_frame.is_empty() and person_identification.is_monitoring(): // Unusable condition
                     if person_identification.is_monitoring():
                         person_identification.append_frame(kinect_frame.skeleton_frames)
 
                     if person_identification.is_monitoring_time_passed():
-                        people_indexes = person_identification.stop_monitoring()
+                        person_identification.stop_monitoring()
 
                     if person_identification.is_identification_delay_passed():
-                        people_indexes = person_identification.get_people_ids()
-                    logger.info(people_indexes)
+                        person_identification.get_people_ids()
 
-                    if process_video_streaming.exitcode is not None:
-                        while not queue_video_streaming.qsize() == 0:
-                            queue_video_streaming.get()
-                        queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
+                    if video_streaming.is_streaming_stopped():
+                        video_streaming.clear_streaming()
+                        # while queue_video_streaming.qsize():
+                        #     queue_video_streaming.get()
+                        video_recorder.close_recording_stream()
+                        # queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
                         person_identification.exit()
-                        process_video_recording.join()
-                        process_video_streaming.join()
+                        # process_video_recording.join()
+                        video_streaming.close_streaming()
+                        # process_video_streaming.join()
                         terminate = True
-                    elif body_index == 5 and not have_bodies:
-                        queue_video_streaming.put({body_index: kinect_frame})
+                    # elif body_index == 5 and not have_bodies:  # What is it?
+                    #     queue_video_streaming.put({body_index: kinect_frame})
 
-                    if have_bodies:
+                    if kinect_device.has_body_tracked():
                         frame_count += 1
 
     # Close Kinect sensor, close the window and quit.

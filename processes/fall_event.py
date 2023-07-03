@@ -12,10 +12,7 @@ from enum import Enum
 
 import cv2 as cv2
 import numpy as np
-from core.types import KinectFrame
 from http import HTTPStatus  # https://docs.python.org/3/library/http.html
-
-# SKELETON_POINTS_COUNT = 17
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

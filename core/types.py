@@ -6,6 +6,8 @@ from svm.one_class_addon import OneClass
 from multiprocessing import Queue, Process
 from pykinect2_emu.pykinect2_emu import KinectEmulator
 from processes.id_monitoring import identify, MState
+from processes.fall_event import send_preprocessing, Call
+# from processes.paint import paint
 
 
 class ScreenJoint(NamedTuple):
@@ -29,11 +31,11 @@ class Joint(NamedTuple):
 
 class SkeletonFrame:
 
-    def __init__(self, coords, screen_coords) -> object:
+    def __init__(self, coords, screen_coords, player_id) -> object:
         """constructor"""
         self.player_coordinates = coords
         self.player_screen_coordinates = screen_coords
-        self.player_ID = 'NoID'
+        self.player_ID = player_id
 
     def set_id(self, id):
         self.player_ID = id
@@ -168,6 +170,7 @@ class KinectFrameReader:
     def __init__(self, kinect : KinectEmulator):
         self.kinect = kinect
         self.bodies = None
+        self.__has_body_tracked = False
 
     def get_max_body_count(self):
         return self.kinect.max_body_count
@@ -178,7 +181,7 @@ class KinectFrameReader:
     def has_color_frame(self):
         return self.kinect.has_new_color_frame()
 
-    def has_body(self):
+    def has_new_bodies(self):
         return self.kinect.has_new_body_frame()
 
     def get_body_frame(self):
@@ -191,8 +194,9 @@ class KinectFrameReader:
             return None
 
     def set_bodies(self):
-        if self.has_body():
+        if self.has_new_bodies():
             self.bodies = self.get_body_frame()
+            self.__has_body_tracked = False
             return True
 
     def get_bodies(self):
@@ -202,10 +206,16 @@ class KinectFrameReader:
         return self.bodies.bodies[index]
 
     def is_body_tracked(self, index):
-        return self.bodies.bodies[index].is_tracked
+        if self.bodies.bodies[index].is_tracked:
+            self.__has_body_tracked = True
+            return True
+        else:
+            return False
+
+    def has_body_tracked(self):
+        return self.__has_body_tracked
 
     def get_joints(self, index):
-
         joints = []
         for joint in self.bodies.bodies[index].joints:
             joints.append([joint.Position.x * 1e3,
@@ -226,15 +236,16 @@ class KinectFrameReader:
 
 
 class PersonIdentification:
-    def __init__(self, id_delay, t_monitoring, bodies, conf):
+    def __init__(self, id_delay, t_monitoring, bodies_count, conf):
         self.__delay = id_delay
         self.__t = t_monitoring
-        self.__bodies_count = bodies
+        self.__bodies_count = bodies_count
         self.__conf = conf
         self.__start_time = 0.
         self.__end_time = -1.
         self.__monitoring_process = True
         self.__waiting_person_id = True
+        self.__people_indexes = ['NoID'] * bodies_count
 
         self.__queue_person_identification = Queue()
         self.__process_person_identification = None
@@ -258,7 +269,7 @@ class PersonIdentification:
         self.__monitoring_process = False
         self.__end_time = time.time()
         self.__queue_person_identification.put(MState.GET_PERSON_ID)
-        return ["Reloading..."] * self.__bodies_count
+        self.__people_indexes = ["Reloading..."] * self.__bodies_count
 
     def start_id(self):
         self.__start_time = time.time()
@@ -291,18 +302,63 @@ class PersonIdentification:
                 and not self.is_monitoring()
                 and self.is_waiting_for_identification())
 
+    def get_body_id(self, index):
+        return self.__people_indexes[index]
+
     def get_people_ids(self):
         self.__stop_waiting_for_identification()
-        people_indexes = ['NoID'] * self.__bodies_count
+        people_ids = ['NoID'] * self.__bodies_count
         self.__process_person_identification.join()
         ids = self.__queue_person_identification.get()
         for j, person_id in enumerate(ids):
-            people_indexes[j] = person_id
+            people_ids[j] = person_id
         self.__process_person_identification.terminate()
-        return people_indexes
+        self.__people_indexes = people_ids
+        return people_ids
 
     def exit(self):
         self.__queue_person_identification.put(MState.END_MONITORING)
         self.__process_person_identification.join()
 
+
+class VideoRecorder:
+    def __init__(self, conf):
+        self.__queue_video_recording = Queue()
+        self.__process_video_recording = Process(target=send_preprocessing, args=(self.__queue_video_recording, conf))
+
+    def start_recording(self):
+        self.__process_video_recording.start()
+
+    def open_recording_stream(self, store_dir, color_size):
+        self.__queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
+            store_dir,
+            color_size
+        ]))
+
+    def close_recording_stream(self):
+        self.__queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
+        self.__process_video_recording.join()
+
+
+class VideoStreaming:
+    def __init__(self, conf, paint):
+        self.__queue_video_streaming = Queue()
+        self.__process_video_streaming = Process(target=paint, args=(self.__queue_video_streaming,
+                                                                     conf))
+
+    def start_streaming(self):
+        self.__process_video_streaming.start()
+
+    def put_frame(self, frame):
+        self.__queue_video_streaming.put(frame)
+
+    def is_streaming_stopped(self):
+        return self.__process_video_streaming.exitcode is not None
+
+    def clear_streaming(self):
+        while self.__queue_video_streaming.qsize():
+            self.__queue_video_streaming.get()
+
+    def close_streaming(self):
+        self.__process_video_streaming.join()
 
