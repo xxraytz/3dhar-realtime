@@ -72,6 +72,11 @@ class Call(Enum):
     VIDEO_CLOSE_STREAMING = "video_streaming_close"
 
 
+class VisualMode(Enum):
+    VIDEO = '1'
+    NoVideo = '0'
+
+
 def get_max_height(coordinates):
     max_height = coordinates[SKELETON_USABLE_JOINTS_NUMBER["Head"]].y + SKELETON_HEIGHTS_CORRECTION
 
@@ -265,9 +270,9 @@ def create_store_directory(file):
     if not os.path.isdir(file):
         os.mkdir(file)
     path = file + f'Scene_{datetime.now().date()}_' \
-                         f'{datetime.now().time().hour}-' \
-                         f'{datetime.now().time().minute}-' \
-                         f'{datetime.now().time().second}' + "/"
+                  f'{datetime.now().time().hour}-' \
+                  f'{datetime.now().time().minute}-' \
+                  f'{datetime.now().time().second}' + "/"
     os.mkdir(path)
     os.mkdir(path + "Body/")
     os.mkdir(path + "Color/")
@@ -304,7 +309,7 @@ if __name__ == '__main__':
     logger.info(f'Starting service...')
     logger.info(f'Connecting to Microsoft Kinect v2')
 
-    person_identification = PersonIdentification(id_delay=5, t_monitoring=10)
+    person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies=6, conf=config)
 
     with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
         #
@@ -316,7 +321,7 @@ if __name__ == '__main__':
         store_directory = create_store_directory(f'recs/{os.environ.get("test_person_name")}/')
         bodies = None
 
-        if visual == '1':
+        if visual == VisualMode.VIDEO.value:
             queue_video_streaming = Queue()
             process_video_streaming = Process(target=paint, args=(queue_video_streaming, config))
             process_video_streaming.start()
@@ -331,14 +336,6 @@ if __name__ == '__main__':
             kinect_device.get_color_size()
         ]))
 
-        queue_person_identification = Queue()
-        process_person_identification = Process(target=identify, args=(queue_person_identification, config))
-        process_person_identification.start()
-
-        queue_person_identification.put(MState.CHECK_STATUS)
-        queue_person_identification.put((MState.INIT_MONITORING, kinect.max_body_count))
-        queue_person_identification.put((MState.GET_PEOPLE,))
-
         person_identification.start_id()
 
         people_indexes = ['NoID'] * kinect.max_body_count
@@ -347,15 +344,8 @@ if __name__ == '__main__':
             time.sleep(KINECT_FREQUENCY)
             if True:
 
-                if not person_identification.is_monitoring():
-                    if person_identification.is_delay_has_passed():
-                        process_person_identification = Process(target=identify,
-                                                                args=(queue_person_identification, config))
-                        process_person_identification.start()
-
-                        queue_person_identification.put(MState.CHECK_STATUS)
-                        queue_person_identification.put((MState.INIT_MONITORING, kinect_device.get_max_body_count()))
-                        person_identification.start_id()
+                if not person_identification.is_monitoring_blocked():
+                    person_identification.start_id()
 
                 kinect_frame = KinectFrame(kinect_device.get_max_body_count())
                 kinect_frame.set_color_frame(kinect_device.get_color_frame())
@@ -383,37 +373,26 @@ if __name__ == '__main__':
                                                                                  player_screen_coordinates)
                         kinect_frame.skeleton_frames[body_index].set_id(people_indexes[body_index])
 
-                    if visual == '1':
+                    if visual == VisualMode.VIDEO.value:
                         queue_video_streaming.put({body_index: kinect_frame})
 
-                    if len(kinect_frame.skeleton_frames) > 0 and person_identification.is_monitoring():
-                        # queue_video_recording.put((Call.VIDEO_STREAMING, [
-                        #     kinect_frame.skeleton_frames,
-                        #     kinect_frame.color_frame,
-                        # ]))
-                        queue_person_identification.put((MState.APPEND_MONITORING, kinect_frame.skeleton_frames))
+                    # if not kinect_frame.is_empty() and person_identification.is_monitoring(): // Unusable condition
+                    if person_identification.is_monitoring():
+                        person_identification.append_frame(kinect_frame.skeleton_frames)
 
                     if person_identification.is_monitoring_time_passed():
-                        queue_person_identification.put(MState.GET_PERSON_ID)
-                        person_identification.stop_monitoring()
-                        people_indexes = ["Reloading..."] * kinect.max_body_count
+                        people_indexes = person_identification.stop_monitoring()
 
                     if person_identification.is_identification_delay_passed():
-                        person_identification.stop_waiting_for_identification()
-                        process_person_identification.join()
-                        ids = queue_person_identification.get()
-                        for j, person_id in enumerate(ids):
-                            people_indexes[j] = person_id
-                        logger.info(people_indexes)
-                        process_person_identification.terminate()
+                        people_indexes = person_identification.get_people_ids()
+                    logger.info(people_indexes)
 
                     if process_video_streaming.exitcode is not None:
                         while not queue_video_streaming.qsize() == 0:
                             queue_video_streaming.get()
                         queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
-                        queue_person_identification.put(MState.END_MONITORING)
+                        person_identification.exit()
                         process_video_recording.join()
-                        process_person_identification.join()
                         process_video_streaming.join()
                         terminate = True
                     elif body_index == 5 and not have_bodies:

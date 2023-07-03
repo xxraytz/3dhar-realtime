@@ -5,6 +5,7 @@ from svm.svc_addon import Svc
 from svm.one_class_addon import OneClass
 from multiprocessing import Queue, Process
 from pykinect2_emu.pykinect2_emu import KinectEmulator
+from processes.id_monitoring import identify, MState
 
 
 class ScreenJoint(NamedTuple):
@@ -153,6 +154,8 @@ class KinectFrame:
     def set_depth_height(self, value):
         self.__depth_frame_height = value
 
+    def is_empty(self):
+        return len(self.skeleton_frames) == 0
     # def save_fall_statements(self):
     #     filename = self.__path + "falls.txt"
     #     with open(filename, "a+", encoding="utf-8") as f:
@@ -223,16 +226,18 @@ class KinectFrameReader:
 
 
 class PersonIdentification:
-    def __init__(self, id_delay, t_monitoring):
+    def __init__(self, id_delay, t_monitoring, bodies, conf):
         self.__delay = id_delay
         self.__t = t_monitoring
+        self.__bodies_count = bodies
+        self.__conf = conf
         self.__start_time = 0.
         self.__end_time = -1.
         self.__monitoring_process = True
         self.__waiting_person_id = True
 
         self.__queue_person_identification = Queue()
-
+        self.__process_person_identification = None
 
     def is_monitoring(self):
         return self.__monitoring_process
@@ -240,17 +245,33 @@ class PersonIdentification:
     def is_waiting_for_identification(self):
         return self.__waiting_person_id
 
-    def stop_waiting_for_identification(self):
+    def is_monitoring_blocked(self):
+        return self.is_monitoring() or not self.is_delay_has_passed()
+
+    def append_frame(self, frame):
+        self.__queue_person_identification.put((MState.APPEND_MONITORING, frame))
+
+    def __stop_waiting_for_identification(self):
         self.__waiting_person_id = False
 
     def stop_monitoring(self):
         self.__monitoring_process = False
         self.__end_time = time.time()
+        self.__queue_person_identification.put(MState.GET_PERSON_ID)
+        return ["Reloading..."] * self.__bodies_count
 
     def start_id(self):
         self.__start_time = time.time()
         self.__monitoring_process = True
         self.__waiting_person_id = True
+
+        self.__process_person_identification = Process(target=identify, args=(self.__queue_person_identification,
+                                                                              self.__conf))
+        self.__process_person_identification.start()
+
+        self.__queue_person_identification.put(MState.CHECK_STATUS)
+        self.__queue_person_identification.put((MState.INIT_MONITORING, self.__bodies_count))
+        self.__queue_person_identification.put((MState.GET_PEOPLE,))
 
     def get_delay(self):
         return self.__delay
@@ -269,4 +290,19 @@ class PersonIdentification:
         return (round(time.time() - self.__start_time) > self.__t + post_monitoring_delay
                 and not self.is_monitoring()
                 and self.is_waiting_for_identification())
+
+    def get_people_ids(self):
+        self.__stop_waiting_for_identification()
+        people_indexes = ['NoID'] * self.__bodies_count
+        self.__process_person_identification.join()
+        ids = self.__queue_person_identification.get()
+        for j, person_id in enumerate(ids):
+            people_indexes[j] = person_id
+        self.__process_person_identification.terminate()
+        return people_indexes
+
+    def exit(self):
+        self.__queue_person_identification.put(MState.END_MONITORING)
+        self.__process_person_identification.join()
+
 
