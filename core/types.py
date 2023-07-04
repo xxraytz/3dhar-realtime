@@ -291,7 +291,7 @@ class VideoStreaming:
 
     def is_there_image_to_print(self):
         print('is image_to_print ready?')
-        return self.__parent_conn.poll()
+        return self.__parent_conn.poll(timeout=0.01)
 
     def get_frame(self):
         print('get image to print')

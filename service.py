@@ -162,12 +162,12 @@ class VideoThread(QThread):
             video_recorder.open_recording_stream(create_store_directory(f'recs/{os.environ.get("test_person_name")}/'),
                                                  kinect_device.get_color_size())
 
-            person_identification.start_id()
+            # person_identification.start_id()
 
             while self._run_flag:
                 time.sleep(KINECT_FREQUENCY)
-                if not person_identification.is_monitoring_blocked():
-                    person_identification.start_id()
+                # if not person_identification.is_monitoring_blocked():
+                #     person_identification.start_id()
 
                 kinect_frame = KinectFrame(kinect_device.get_max_body_count())
                 kinect_frame.set_color_frame(kinect_device.get_color_frame())
@@ -191,19 +191,20 @@ class VideoThread(QThread):
 
                     if visual == VisualMode.VIDEO.value:
                         video_streaming.put_frame({body_index: kinect_frame})
+
                         if video_streaming.is_there_image_to_print():
                             cimage = video_streaming.get_frame()
                             print(cimage.shape)
                             self.change_pixmap_signal.emit(cimage)  # type: ignore
 
-                    if person_identification.is_monitoring():
-                        person_identification.append_frame(kinect_frame.skeleton_frames)
-
-                    if person_identification.is_monitoring_time_passed():
-                        person_identification.stop_monitoring()
-
-                    if person_identification.is_identification_delay_passed():
-                        person_identification.get_people_ids()
+                    # if person_identification.is_monitoring():
+                    #     person_identification.append_frame(kinect_frame.skeleton_frames)
+                    #
+                    # if person_identification.is_monitoring_time_passed():
+                    #     person_identification.stop_monitoring()
+                    #
+                    # if person_identification.is_identification_delay_passed():
+                    #     person_identification.get_people_ids()
 
                     if video_streaming.is_streaming_stopped():
                         video_streaming.clear_streaming()
