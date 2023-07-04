@@ -289,7 +289,7 @@ class VideoStreaming:
         self.__process_video_streaming.start()
 
     def is_there_image_to_print(self):
-        return self.__parent_conn.poll(timeout=0.01)
+        return self.__parent_conn.poll(timeout=0.02)
 
     def get_frame(self):
         return self.__parent_conn.recv()
@@ -301,12 +301,8 @@ class VideoStreaming:
         return self.__process_video_streaming.exitcode is not None
 
     def clear_streaming(self):
-        while self.__child_conn.pool():
-            self.__child_conn.recv()
-        while self.__parent_conn.pool():
-            self.__parent_conn.recv()
+        self.__parent_conn.send(None)
 
     def close_streaming(self):
-        print('close streaming')
         self.__process_video_streaming.join()
 
