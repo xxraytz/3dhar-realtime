@@ -21,7 +21,7 @@ VIDEO_HEIGHT = 1900
 
 class MState(Enum):
     START_MONITORING = "start"
-    APPEND_MONITORING = "start"
+    APPEND_MONITORING = "append"
     END_MONITORING = "end"
     GET_PERSON_ID = "get_id"
     CHECK_STATUS = "check_status"

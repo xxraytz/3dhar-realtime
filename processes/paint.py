@@ -6,9 +6,11 @@ import cv2 as cv2
 import numpy as np
 from enum import Enum
 
+
 class Call(Enum):
     INIT = "init_video_stream"
     PUT = "put_frame_into_video_stream"
+
 
 class VideoMode(Enum):
     REAL = 49
@@ -64,40 +66,32 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
     return color_image
 
 
-def paint(q_paint, config):
-    initialized = False
+def paint(conn, config):
     video_mode = VideoMode.SKELETAL
     saved_color_image = cv2.imread('_color_image.png')
-    window_name = 'Fall Detection System'
-    signal_f = None
-    color_image = None
+    # window_name = 'Fall Detection System'
+    # color_image = None
     with open(config, 'r') as stream:
         config = json.load(stream)
         skeleton_lines = config["SKELETON_LINES"]
 
     while True:
-        data = q_paint.get()
-        if data is None:
-            break
-        elif data[0].value == Call.INIT.value:
-            print('start')
-            signal_f = data[1]
-        elif data[0].value == Call.PUT.value:
-            print('put')
-            if not initialized:
-                continue
-            color_image = generate_image(saved_color_image, data[1], video_mode, skeleton_lines)
+        if conn.poll():
+            data = conn.recv()
+            if data is None:
+                break
+            else:
+                color_image = generate_image(saved_color_image, data, video_mode, skeleton_lines)
+                color_image = cv2.resize(color_image, (1920, 1080))
 
-            color_image = cv2.resize(color_image, (1920, 1080))
-
+                conn.send(color_image)
             # cv2.imshow(window_name, color_image)
-            signal_f(color_image)
-            key = cv2.waitKey(1)
-            if key in video_mode.get_all():
-                video_mode = VideoMode(key)
-            if key == ord('q'):
-                break
-            if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) == 0:
-                break
-
-    cv2.destroyAllWindows()
+            # key = cv2.waitKey(1)
+            # if key in video_mode.get_all():
+            #     video_mode = VideoMode(key)
+            # if key == ord('q'):
+            #     break
+            # if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) == 0:
+            #     break
+    #
+    # cv2.destroyAllWindows()

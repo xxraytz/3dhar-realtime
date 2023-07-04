@@ -154,9 +154,7 @@ class VideoThread(QThread):
             kinect_device = KinectFrameReader(kinect)
 
             if visual == VisualMode.VIDEO.value:
-                from processes.paint import Call
-                video_streaming = VideoStreaming(config, paint, self.change_pixmap_signal,
-                                                 Call)
+                video_streaming = VideoStreaming(config, paint)
                 video_streaming.start_streaming()
 
             time.sleep(2)
@@ -193,6 +191,10 @@ class VideoThread(QThread):
 
                     if visual == VisualMode.VIDEO.value:
                         video_streaming.put_frame({body_index: kinect_frame})
+                        if video_streaming.is_there_image_to_print():
+                            cimage = video_streaming.get_frame()
+                            print(cimage.shape)
+                            self.change_pixmap_signal.emit(cimage)  # type: ignore
 
                     if person_identification.is_monitoring():
                         person_identification.append_frame(kinect_frame.skeleton_frames)
