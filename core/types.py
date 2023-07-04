@@ -286,27 +286,21 @@ class VideoStreaming:
                                                                      conf))
 
     def start_streaming(self):
-        print('start_streaming')
         self.__process_video_streaming.start()
 
     def is_there_image_to_print(self):
-        print('is image_to_print ready?')
         return self.__parent_conn.poll(timeout=0.01)
 
     def get_frame(self):
-        print('get image to print')
         return self.__parent_conn.recv()
 
     def put_frame(self, frame):
-        print('put image to generate')
         self.__parent_conn.send(frame)
 
     def is_streaming_stopped(self):
-        print('check stop streaming')
         return self.__process_video_streaming.exitcode is not None
 
     def clear_streaming(self):
-        print('clear streaming')
         while self.__child_conn.pool():
             self.__child_conn.recv()
         while self.__parent_conn.pool():

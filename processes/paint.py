@@ -67,7 +67,7 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
 
 
 def paint(conn, config):
-    video_mode = VideoMode.SKELETAL
+    video_mode = VideoMode.REAL
     saved_color_image = cv2.imread('_color_image.png')
     # window_name = 'Fall Detection System'
     # color_image = None
