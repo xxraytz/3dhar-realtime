@@ -19,6 +19,8 @@ logger.setLevel(logging.INFO)
 
 
 class App(QWidget):
+    update_people_list = pyqtSignal(list)
+
     def __init__(self):
         super().__init__()
         self.size = (640, 480)
@@ -41,6 +43,7 @@ class App(QWidget):
 
         self.thread = VideoThread()
         self.thread.change_pixmap_signal.connect(self.update_image)  # type: ignore
+        self.thread.change_people_identification_list.connect(self.update_people_identification_list)
         self.thread.start()
 
     def pause(self):
@@ -62,6 +65,10 @@ class App(QWidget):
     def update_image(self, cv_image):
         qt_image = self.convert_cv_qt(cv_image)
         self.image_label.setPixmap(qt_image)
+
+    @pyqtSlot(list)
+    def update_people_identification_list(self, people):
+        self.update_people_list.emit(people)
 
 
 class PeopleListWindow(QWidget):
@@ -98,9 +105,14 @@ class PeopleListWindow(QWidget):
         model = QStandardItemModel()
         for string in self.string_list:
             item = QStandardItem(string)
-            item.setCheckable(True)
+            item.setCheckable(False)
             model.appendRow(item)
         return model
+
+    def set_people_list(self, str_list):
+        if str_list:
+            self.string_list = str_list
+            self.list_view.setModel(self.create_model())
 
     def on_accept_button_clicked(self):
         selected_indexes = self.list_view.selectedIndexes()
@@ -119,6 +131,7 @@ class MainWindow(QMainWindow):
         self.people_window = PeopleListWindow()
         self.setWindowTitle("OpenCV video demo")
         self.main_widget = App()
+        self.main_widget.update_people_list.connect(self.update_people_list)
         self.setCentralWidget(self.main_widget)
         toolbar = QToolBar("Mine Main Menu")
         self.addToolBar(toolbar)
@@ -145,8 +158,12 @@ class MainWindow(QMainWindow):
         setting_menu.addAction(change_video_mode_action)
         setting_menu.addAction(choose_people_to_id)
 
-    def on_choose_people(self):
+    @pyqtSlot(list)
+    def update_people_list(self, people):
+        self.people_window.set_people_list(people)
+        print(self.people_window.string_list)
 
+    def on_choose_people(self):
         self.people_window.show()
 
     def closeEvent(self, event: QCloseEvent) -> None:

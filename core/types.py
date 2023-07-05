@@ -50,7 +50,6 @@ class SkeletonFrame:
         return True
 
 
-
 class KinectFrame:
 
     def __init__(self, max_body_count, color_frame=None):
@@ -106,7 +105,7 @@ class KinectFrame:
 
 
 class KinectFrameReader:
-    def __init__(self, kinect : KinectEmulator):
+    def __init__(self, kinect: KinectEmulator):
         self.kinect = kinect
         self.bodies = None
         self.__has_body_tracked = False
@@ -168,13 +167,13 @@ class KinectFrameReader:
         joints = []
         for joint in self.kinect.body_joints_to_color_space(self.get_body(index).joints):
             if math.isinf(joint.x) and math.isinf(joint.y):
-                joints.append([0,0])
+                joints.append([0, 0])
             else:
                 joints.append([int(joint.x), int(joint.y)])
         return joints
 
 
-class PersonIdentification:
+class PersonIdentification:  # Should be provided by Pipe() not Queue
     def __init__(self, id_delay, t_monitoring, bodies_count, conf):
         self.__delay = id_delay
         self.__t = t_monitoring
@@ -289,7 +288,7 @@ class VideoStreaming:
         self.__process_video_streaming.start()
 
     def is_there_image_to_print(self):
-        return self.__parent_conn.poll(timeout=0.02)
+        return self.__parent_conn.poll(timeout=0.05)
 
     def get_frame(self):
         return self.__parent_conn.recv()
@@ -305,4 +304,3 @@ class VideoStreaming:
 
     def close_streaming(self):
         self.__process_video_streaming.join()
-

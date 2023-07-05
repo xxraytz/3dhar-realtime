@@ -107,6 +107,7 @@ logger.setLevel(logging.INFO)
 
 class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
+    change_people_identification_list = pyqtSignal(list)
 
     def __init__(self):
         super().__init__()
@@ -152,6 +153,7 @@ class VideoThread(QThread):
                                                  kinect_device.get_color_size())
 
             person_identification.start_id()
+            self.change_people_identification_list.emit(['Egor', 'Nikita', 'Andrei'])
 
             while self._run_flag:
                 if not self._pause_flag:
