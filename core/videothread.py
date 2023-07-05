@@ -158,7 +158,7 @@ class VideoThread(QThread):
             while self._run_flag:
                 if not self._pause_flag:
                     time.sleep(0.01)  # KINECT_FREQUENCY
-                    if not person_identification.is_monitoring_blocked():
+                    if not person_identification.is_monitoring_blocked() and not person_identification.is_monitoring():
                         person_identification.start_id()
 
                     kinect_frame = KinectFrame(kinect_device.get_max_body_count())

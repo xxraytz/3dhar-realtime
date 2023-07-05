@@ -184,8 +184,8 @@ class PersonIdentification:  # Should be provided by Pipe() not Queue
         self.__monitoring_process = True
         self.__waiting_person_id = True
         self.__people_indexes = ['NoID'] * bodies_count
-
-        self.__queue_person_identification = Queue()
+        self.__monitoring_block = False
+        self.__parent_conn, self.__child_conn = Pipe()
         self.__process_person_identification = None
 
     def is_monitoring(self):
@@ -195,18 +195,19 @@ class PersonIdentification:  # Should be provided by Pipe() not Queue
         return self.__waiting_person_id
 
     def is_monitoring_blocked(self):
-        return self.is_monitoring() or not self.is_delay_has_passed()
+        return self.__monitoring_block
 
     def append_frame(self, frame):
-        self.__queue_person_identification.put((MState.APPEND_MONITORING, frame))
+        self.__parent_conn.send((MState.APPEND_MONITORING, frame))
 
     def __stop_waiting_for_identification(self):
         self.__waiting_person_id = False
 
     def stop_monitoring(self):
         self.__monitoring_process = False
+        self.__monitoring_block = True
         self.__end_time = time.time()
-        self.__queue_person_identification.put(MState.GET_PERSON_ID)
+        self.__parent_conn.send(MState.GET_PERSON_ID)
         self.__people_indexes = ["Reloading..."] * self.__bodies_count
 
     def start_id(self):
@@ -214,13 +215,13 @@ class PersonIdentification:  # Should be provided by Pipe() not Queue
         self.__monitoring_process = True
         self.__waiting_person_id = True
 
-        self.__process_person_identification = Process(target=identify, args=(self.__queue_person_identification,
+        self.__process_person_identification = Process(target=identify, args=(self.__child_conn,
                                                                               self.__conf))
         self.__process_person_identification.start()
 
-        self.__queue_person_identification.put(MState.CHECK_STATUS)
-        self.__queue_person_identification.put((MState.INIT_MONITORING, self.__bodies_count))
-        self.__queue_person_identification.put((MState.GET_PEOPLE,))
+        self.__parent_conn.send(MState.CHECK_STATUS)
+        self.__parent_conn.send((MState.INIT_MONITORING, self.__bodies_count))
+        self.__parent_conn.send((MState.GET_PEOPLE,))
 
     def get_delay(self):
         return self.__delay
@@ -229,7 +230,7 @@ class PersonIdentification:  # Should be provided by Pipe() not Queue
         return self.__t
 
     def is_delay_has_passed(self):
-        return (time.time() - self.__end_time) > self.__delay
+        return self.__parent_conn.poll()
 
     def is_monitoring_time_passed(self):
         return round(time.time() - self.__start_time) > self.__t and self.is_monitoring()
@@ -244,18 +245,21 @@ class PersonIdentification:  # Should be provided by Pipe() not Queue
         return self.__people_indexes[index]
 
     def get_people_ids(self):
+        self.__monitoring_block = True
         self.__stop_waiting_for_identification()
         people_ids = ['NoID'] * self.__bodies_count
         self.__process_person_identification.join()
-        ids = self.__queue_person_identification.get()
+        ids = self.__parent_conn.recv()
+        print('get_people_ids', ids)
         for j, person_id in enumerate(ids):
             people_ids[j] = person_id
+        print('Done')
         self.__process_person_identification.terminate()
         self.__people_indexes = people_ids
         return people_ids
 
     def exit(self):
-        self.__queue_person_identification.put(MState.END_MONITORING)
+        self.__parent_conn.send(MState.END_MONITORING)
         self.__process_person_identification.join()
 
 
