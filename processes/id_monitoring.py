@@ -29,7 +29,7 @@ class MState(Enum):
     INIT_MONITORING = "initialization"
 
 
-def identify(conn, config):
+def identify(conn, event):
     skeletons = {}
     database = None
     train_x, train_y = None, None
@@ -44,7 +44,7 @@ def identify(conn, config):
             if state.value is MState.CHECK_STATUS.value:
                 logger.info(state.value)
             elif state.value is MState.INIT_MONITORING.value:
-                logger.info(state.value)
+                logger.info('Start monitoring')
                 database = get_database(os.environ.get('database_path'))
                 database = [el[:, :-1] for el in database]
                 database = height_correction(database, DATABASE_HEIGHT)
@@ -56,11 +56,12 @@ def identify(conn, config):
 
                 for i in range(0, data[1]):
                     skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
+                    event.set()
             elif state.value is MState.GET_PEOPLE.value:
                 logger.info(state.value)
-                logger.info(np.unique(train_y))
                 conn.send(np.unique(train_y))
             elif state.value is MState.END_MONITORING.value:
+                logger.info("Close monitoring")
                 break
             elif state.value is MState.APPEND_MONITORING.value:
                 skeletons_frame = data[1]
@@ -68,6 +69,7 @@ def identify(conn, config):
                     if sk_ind is not None:
                         skeletons[f'skeleton_{i:03d}'].append(sk_ind)
             elif state.value is MState.GET_PERSON_ID.value:
+                logger.info("End monitoring")
                 logger.info("Getting person ID")
                 ids = ['NoID'] * len(skeletons)
                 for i, sk_ind in enumerate(skeletons):

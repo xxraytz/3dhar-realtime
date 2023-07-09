@@ -128,7 +128,6 @@ class VideoThread(QThread):
         visual = args.v
 
         video_recorder = VideoRecorder(config)
-        video_recorder.start_recording()
 
         person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies_count=6, conf=config)
 
@@ -142,24 +141,26 @@ class VideoThread(QThread):
             #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
             kinect_device = KinectFrameReader(kinect)
+            time.sleep(2)
 
             if visual == VisualMode.VIDEO.value:
                 video_streaming = VideoStreaming(config, paint)
                 video_streaming.start_streaming()
 
-            time.sleep(2)
-
+            video_recorder.start_recording()
             video_recorder.open_recording_stream(create_store_directory(f'recs/{os.environ.get("test_person_name")}/'),
                                                  kinect_device.get_color_size())
+            person_identification.start_monitoring()
 
-            person_identification.start_id()
-            self.change_people_identification_list.emit(['Egor', 'Nikita', 'Andrei'])
+            person_identification.request_all_people_names()
+            # print('he - ', person_identification.get_all_people_names())
+            self.change_people_identification_list.emit(person_identification.get_all_people_names())
 
             while self._run_flag:
                 if not self._pause_flag:
                     time.sleep(0.01)  # KINECT_FREQUENCY
-                    if not person_identification.is_monitoring_blocked() and not person_identification.is_monitoring():
-                        person_identification.start_id()
+                    if person_identification.is_monitoring_ready():
+                        person_identification.start_monitoring()
 
                     kinect_frame = KinectFrame(kinect_device.get_max_body_count())
                     kinect_frame.set_color_frame(kinect_device.get_color_frame())
@@ -191,14 +192,13 @@ class VideoThread(QThread):
 
                         if person_identification.is_monitoring():
                             person_identification.append_frame(kinect_frame.skeleton_frames)
+                            if person_identification.is_monitoring_time_expired():
+                                person_identification.stop_monitoring()
 
-                        if person_identification.is_monitoring_time_passed():
-                            person_identification.stop_monitoring()
-
-                        if person_identification.is_identification_delay_passed():
+                        if person_identification.is_result_waiting() and person_identification.is_result_obtained():
                             person_identification.get_people_ids()
 
-                        if video_streaming.is_streaming_stopped():
+                        if visual == VisualMode.VIDEO.value and video_streaming.is_streaming_stopped():
                             video_streaming.clear_streaming()
                             video_recorder.close_recording_stream()
                             person_identification.exit()

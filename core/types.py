@@ -3,7 +3,7 @@ import math
 import time
 from typing import NamedTuple
 
-from multiprocessing import Queue, Process, Pipe
+from multiprocessing import Queue, Process, Pipe, Event
 
 from pykinect2_emu.pykinect2_emu import KinectEmulator
 from processes.id_monitoring import identify, MState
@@ -173,89 +173,102 @@ class KinectFrameReader:
         return joints
 
 
-class PersonIdentification:  # Should be provided by Pipe() not Queue
+class PersonIdentification:
     def __init__(self, id_delay, t_monitoring, bodies_count, conf):
-        self.__delay = id_delay
-        self.__t = t_monitoring
         self.__bodies_count = bodies_count
         self.__conf = conf
+        self.__t = t_monitoring
+        self.__after_monitoring_delay = id_delay
+
+        self.__result_obtained_time = -1.
         self.__start_time = 0.
-        self.__end_time = -1.
-        self.__monitoring_process = True
-        self.__waiting_person_id = True
+
         self.__people_indexes = ['NoID'] * bodies_count
-        self.__monitoring_block = False
         self.__parent_conn, self.__child_conn = Pipe()
         self.__process_person_identification = None
+        self.__people_names = None
+
+        # Bool constant - conditions
+        self.__monitoring_completed = False
+        self.__result_waiting = False
+        self.__result_obtained = False
+        self.__monitoring_process = True
+
+    def is_monitoring_ready(self):
+        if self.is_monitoring_completed():
+            return time.time() - self.__result_obtained_time > self.__after_monitoring_delay
 
     def is_monitoring(self):
         return self.__monitoring_process
 
-    def is_waiting_for_identification(self):
-        return self.__waiting_person_id
+    def is_monitoring_completed(self):
+        return self.__monitoring_completed
 
-    def is_monitoring_blocked(self):
-        return self.__monitoring_block
+    def is_monitoring_time_expired(self):
+        if time.time() - self.__start_time > self.__t:
+            return True
+        else:
+            return False
+
+    def is_result_waiting(self):
+        return self.__result_waiting
+
+    def is_result_obtained(self):
+        if self.__parent_conn.poll(timeout=0.01):
+            self.__result_waiting = False
+            self.__result_obtained = True
+        return self.__result_obtained
 
     def append_frame(self, frame):
         self.__parent_conn.send((MState.APPEND_MONITORING, frame))
 
-    def __stop_waiting_for_identification(self):
-        self.__waiting_person_id = False
-
     def stop_monitoring(self):
         self.__monitoring_process = False
-        self.__monitoring_block = True
-        self.__end_time = time.time()
         self.__parent_conn.send(MState.GET_PERSON_ID)
+        self.__result_waiting = True
         self.__people_indexes = ["Reloading..."] * self.__bodies_count
 
-    def start_id(self):
+    def start_monitoring(self):
         self.__start_time = time.time()
+        self.__result_obtained_time = -1
         self.__monitoring_process = True
-        self.__waiting_person_id = True
+        self.__monitoring_completed = False
+        self.__result_waiting = False
+        self.__result_obtained = False
 
+        event = Event()
         self.__process_person_identification = Process(target=identify, args=(self.__child_conn,
-                                                                              self.__conf))
+                                                                              event))
         self.__process_person_identification.start()
 
         self.__parent_conn.send(MState.CHECK_STATUS)
         self.__parent_conn.send((MState.INIT_MONITORING, self.__bodies_count))
+        # event.wait()
+
+    def request_all_people_names(self):
         self.__parent_conn.send((MState.GET_PEOPLE,))
-
-    def get_delay(self):
-        return self.__delay
-
-    def get_monitoring_period(self):
-        return self.__t
-
-    def is_delay_has_passed(self):
-        return self.__parent_conn.poll()
-
-    def is_monitoring_time_passed(self):
-        return round(time.time() - self.__start_time) > self.__t and self.is_monitoring()
-
-    def is_identification_delay_passed(self):
-        post_monitoring_delay = 4
-        return (round(time.time() - self.__start_time) > self.__t + post_monitoring_delay
-                and not self.is_monitoring()
-                and self.is_waiting_for_identification())
+        if self.__parent_conn.poll(timeout=1):
+            self.__people_names = self.__parent_conn.recv()
+            return self.__people_names
+        else:
+            return None
 
     def get_body_id(self, index):
         return self.__people_indexes[index]
 
+    def get_all_people_names(self):
+        return self.__people_names
+
     def get_people_ids(self):
-        self.__monitoring_block = True
-        self.__stop_waiting_for_identification()
         people_ids = ['NoID'] * self.__bodies_count
-        self.__process_person_identification.join()
         ids = self.__parent_conn.recv()
-        print('get_people_ids', ids)
         for j, person_id in enumerate(ids):
             people_ids[j] = person_id
-        print('Done')
+        self.__process_person_identification.join()
         self.__process_person_identification.terminate()
         self.__people_indexes = people_ids
+        self.__result_obtained_time = time.time()
+        self.__monitoring_completed = True
         return people_ids
 
     def exit(self):
@@ -287,9 +300,14 @@ class VideoStreaming:
         self.__parent_conn, self.__child_conn = Pipe()
         self.__process_video_streaming = Process(target=paint, args=(self.__child_conn,
                                                                      conf))
+        self.started = False
+
+    def is_video_started(self):
+        return
 
     def start_streaming(self):
         self.__process_video_streaming.start()
+        self.started = True
 
     def is_there_image_to_print(self):
         return self.__parent_conn.poll(timeout=0.05)
@@ -301,7 +319,10 @@ class VideoStreaming:
         self.__parent_conn.send(frame)
 
     def is_streaming_stopped(self):
-        return self.__process_video_streaming.exitcode is not None
+        if self.started:
+            return self.__process_video_streaming.exitcode is not None
+        else:
+            return False
 
     def clear_streaming(self):
         self.__parent_conn.send(None)

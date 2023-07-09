@@ -66,8 +66,9 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
     return color_image
 
 
-def paint(conn, config):
+def paint(paint_conn, config):
     video_mode = VideoMode.REAL
+
     saved_color_image = cv2.imread('_color_image.png')
     # window_name = 'Fall Detection System'
     # color_image = None
@@ -76,15 +77,15 @@ def paint(conn, config):
         skeleton_lines = config["SKELETON_LINES"]
 
     while True:
-        if conn.poll():
-            data = conn.recv()
+        if paint_conn.poll():
+            data = paint_conn.recv()
             if data is None:
                 break
             else:
                 color_image = generate_image(saved_color_image, data, video_mode, skeleton_lines)
                 color_image = cv2.resize(color_image, (1920, 1080))
 
-                conn.send(color_image)
+                paint_conn.send(color_image)
             # cv2.imshow(window_name, color_image)
             # key = cv2.waitKey(1)
             # if key in video_mode.get_all():
