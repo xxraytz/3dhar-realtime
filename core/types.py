@@ -78,8 +78,8 @@ class KinectFrame:
     def get_depth_height(self):
         return self.__depth_frame_height
 
-    def set_color_frame(self, color_frame):
-        self.__color_frame_width, self.__color_frame_height = color_frame.shape[:2][::-1]
+    def set_color_frame(self, color_frame, size):
+        self.__color_frame_width, self.__color_frame_height = size
         self.color_frame = color_frame
 
     def set_color_width(self, value):
@@ -194,9 +194,13 @@ class PersonIdentification:
         self.__result_obtained = False
         self.__monitoring_process = True
 
+        self.event = None
+
     def is_monitoring_ready(self):
         if self.is_monitoring_completed():
             return time.time() - self.__result_obtained_time > self.__after_monitoring_delay
+        else:
+            return False
 
     def is_monitoring(self):
         return self.__monitoring_process
@@ -235,18 +239,18 @@ class PersonIdentification:
         self.__monitoring_completed = False
         self.__result_waiting = False
         self.__result_obtained = False
+        self.event = Event()
 
-        event = Event()
         self.__process_person_identification = Process(target=identify, args=(self.__child_conn,
-                                                                              event))
+                                                                              self.event))
         self.__process_person_identification.start()
 
         self.__parent_conn.send(MState.CHECK_STATUS)
         self.__parent_conn.send((MState.INIT_MONITORING, self.__bodies_count))
-        # event.wait()
 
     def request_all_people_names(self):
         self.__parent_conn.send((MState.GET_PEOPLE,))
+        self.event.wait()
         if self.__parent_conn.poll(timeout=1):
             self.__people_names = self.__parent_conn.recv()
             return self.__people_names
@@ -310,10 +314,10 @@ class VideoStreaming:
         self.started = True
 
     def is_there_image_to_print(self):
-        return self.__parent_conn.poll(timeout=0.05)
+        return self.__parent_conn.poll(timeout=None)
 
-    def get_frame(self):
-        return self.__parent_conn.recv()
+    def get_frame(self, emitter):
+        emitter(self.__parent_conn.recv())
 
     def put_frame(self, frame):
         self.__parent_conn.send(frame)

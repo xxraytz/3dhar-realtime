@@ -56,9 +56,9 @@ def identify(conn, event):
 
                 for i in range(0, data[1]):
                     skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
-                    event.set()
             elif state.value is MState.GET_PEOPLE.value:
                 logger.info(state.value)
+                event.set()
                 conn.send(np.unique(train_y))
             elif state.value is MState.END_MONITORING.value:
                 logger.info("Close monitoring")

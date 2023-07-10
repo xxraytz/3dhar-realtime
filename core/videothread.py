@@ -127,19 +127,17 @@ class VideoThread(QThread):
         config = get_config(args)
         visual = args.v
 
-        video_recorder = VideoRecorder(config)
-
         person_identification = PersonIdentification(id_delay=5, t_monitoring=10, bodies_count=6, conf=config)
 
         # capture_picture()
 
-        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-            #
-            # with PyKinectRuntime.PyKinectRuntime(
-            #         PyKinectV2.FrameSourceTypes_Color
-            #         | PyKinectV2.FrameSourceTypes_Body
-            #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
 
+        with PyKinectRuntime.PyKinectRuntime(
+                PyKinectV2.FrameSourceTypes_Color
+                | PyKinectV2.FrameSourceTypes_Body
+                | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+            #
             kinect_device = KinectFrameReader(kinect)
             time.sleep(2)
 
@@ -147,9 +145,6 @@ class VideoThread(QThread):
                 video_streaming = VideoStreaming(config, paint)
                 video_streaming.start_streaming()
 
-            video_recorder.start_recording()
-            video_recorder.open_recording_stream(create_store_directory(f'recs/{os.environ.get("test_person_name")}/'),
-                                                 kinect_device.get_color_size())
             person_identification.start_monitoring()
 
             person_identification.request_all_people_names()
@@ -158,18 +153,17 @@ class VideoThread(QThread):
 
             while self._run_flag:
                 if not self._pause_flag:
-                    time.sleep(0.01)  # KINECT_FREQUENCY
+                    time.sleep(KINECT_FREQUENCY)  # KINECT_FREQUENCY
                     if person_identification.is_monitoring_ready():
                         person_identification.start_monitoring()
 
                     kinect_frame = KinectFrame(kinect_device.get_max_body_count())
-                    kinect_frame.set_color_frame(kinect_device.get_color_frame())
+                    kinect_frame.set_color_frame(kinect_device.get_color_frame(), kinect_device.get_color_size())
 
                     if kinect_device.set_bodies():
                         for body_index in range(0, kinect_device.get_max_body_count()):
                             if not kinect_device.is_body_tracked(body_index):
                                 continue
-
                             joints_skeleton_space = kinect_device.get_joints(body_index)  # Joints in a skeleton space
                             joints_color_space = kinect_device.get_color_space_joints(body_index)
 
@@ -187,8 +181,7 @@ class VideoThread(QThread):
                             video_streaming.put_frame({body_index: kinect_frame})
 
                             if video_streaming.is_there_image_to_print():
-                                cimage = video_streaming.get_frame()
-                                self.change_pixmap_signal.emit(cimage)  # type: ignore
+                                video_streaming.get_frame(self.change_pixmap_signal.emit)
 
                         if person_identification.is_monitoring():
                             person_identification.append_frame(kinect_frame.skeleton_frames)
@@ -200,13 +193,11 @@ class VideoThread(QThread):
 
                         if visual == VisualMode.VIDEO.value and video_streaming.is_streaming_stopped():
                             video_streaming.clear_streaming()
-                            video_recorder.close_recording_stream()
                             person_identification.exit()
                             video_streaming.close_streaming()
                             self._run_flag = False
 
             video_streaming.clear_streaming()
-            video_recorder.close_recording_stream()
             person_identification.exit()
             video_streaming.close_streaming()
 
