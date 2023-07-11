@@ -3,14 +3,14 @@ import json
 import logging
 import os
 from datetime import datetime
-from core.videothread import VideoThread
+from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread
 import cv2
 import numpy as np
 
 import sys
 from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton, QToolBar, QMainWindow, QStatusBar, \
     QScrollArea, QListView, QMessageBox
-from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem
+from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup
 from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -18,11 +18,39 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+def get_config(args):
+    with open(args.config, 'r') as stream:
+        config = json.load(stream)
+        EXCLUDE_SKELETON_DISTANCES = config["EXCLUDE_SKELETON_DISTANCES"]
+        SKELETON_COLORS = config["SKELETON_COLORS"]
+        USABLE_SK_JOINTS = config["SKELETON_USABLE_JOINTS_NUMBER"]
+        USABLE_SK_JOINTS = dict(
+            sorted(
+                USABLE_SK_JOINTS.items(),
+                key=lambda x: x[1]
+            )
+        )
+        SKELETON_LINES = config["SKELETON_LINES"]
+        SKELETON_POINTS_COUNT = config["SKELETON_POINTS_COUNT"]
+        SKELETON_HEIGHTS_CORRECTION = config["SKELETON_HEIGHTS_CORRECTION"]
+    config = args.config
+    return config
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='config.json', help='JSON config')
+    parser.add_argument('-v', default=1, help='Kinect data visualisation')
+    return parser.parse_args()
+
+
 class App(QWidget):
     update_people_list = pyqtSignal(list)
+    set_monitoring_people_list = pyqtSignal(list)
 
-    def __init__(self):
+    def __init__(self, config):
         super().__init__()
+        self.conf = config
         self.size = (640, 480)
         self.image_label = QLabel(self)
         self.image_label.resize(*self.size)
@@ -41,16 +69,29 @@ class App(QWidget):
         grey_image.fill(QColor('grey'))
         self.image_label.setPixmap(grey_image)
 
-        self.thread = VideoThread()
-        self.thread.change_pixmap_signal.connect(self.update_image)  # type: ignore
-        self.thread.change_people_identification_list.connect(self.update_people_identification_list)
-        self.thread.start()
+        self.main_thread = MainThread(self.conf)
+        self.video_streaming_thread = VideoStreamingThread(self.conf)
+        self.people_monitoring_thread = PeopleMonitoringThread(self.conf, 6)
+
+        self.video_streaming_thread.video_frame_sending.connect(self.update_image)
+        self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
+        self.main_thread.video_frame_generate.connect(self.video_streaming_thread.queue.put)
+        self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
+
+        self.main_thread.start()
+        self.video_streaming_thread.start()
+        self.people_monitoring_thread.start()
 
     def pause(self):
-        self.thread.pause()
+        self.main_thread.pause()
+
+    @pyqtSlot(list)
+    def set_people_indexes(self, people_ids):
+        logger.info(people_ids)
+        self.people_monitoring_thread.stop()
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        self.thread.stop()
+        self.main_thread.stop()
         event.accept()
 
     def convert_cv_qt(self, cv_img):
@@ -121,17 +162,17 @@ class PeopleListWindow(QWidget):
 
         if len(selected_strings) > 0:
             QMessageBox.information(self, 'Выбранные строки', "\n".join(selected_strings))
+            self.close()
         else:
             QMessageBox.warning(self, "Предупреждение", "Не выбрано ни одной строки")
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, args):
         super(MainWindow, self).__init__()
         self.people_window = PeopleListWindow()
         self.setWindowTitle("OpenCV video demo")
-        self.main_widget = App()
-        self.main_widget.update_people_list.connect(self.update_people_list)
+        self.main_widget = App(get_config(args))
         self.setCentralWidget(self.main_widget)
         toolbar = QToolBar("Mine Main Menu")
         self.addToolBar(toolbar)
@@ -149,14 +190,38 @@ class MainWindow(QMainWindow):
         file_menu.addAction(button_action)
 
         setting_menu = menu.addMenu("&Settings")
-        change_video_mode_action = QAction('Video mode', self)
+        change_video_mode_action = setting_menu.addMenu('&Video mode')
         change_video_mode_action.setStatusTip("Change video mode (Real Video, Skeletal Video)")
         choose_people_to_id = QAction('Choose people', self)
         choose_people_to_id.setStatusTip('Choose more than one people to identify')
         choose_people_to_id.triggered.connect(self.on_choose_people)
 
-        setting_menu.addAction(change_video_mode_action)
+        # setting_menu.addAction(change_video_mode_action)
         setting_menu.addAction(choose_people_to_id)
+
+        video_mode_group = QActionGroup(self, )
+        self.video_mode_skeletal = QAction('Skeletal video', self)
+        self.video_mode_real = QAction('Real video', self)
+        self.video_mode_skeletal.setStatusTip("Skeletal video")
+        self.video_mode_real.setStatusTip("Real video")
+        self.video_mode_skeletal.setCheckable(True)
+        self.video_mode_real.setCheckable(True)
+        self.video_mode_real.setChecked(True)
+
+        self.video_mode_skeletal.triggered.connect(self.set_video_mode_skeletal)
+        self.video_mode_real.triggered.connect(self.set_video_mode_real)
+
+        video_mode_group.addAction(self.video_mode_real)
+        video_mode_group.addAction(self.video_mode_skeletal)
+
+        change_video_mode_action.addAction(self.video_mode_real)
+        change_video_mode_action.addAction(self.video_mode_skeletal)
+
+    def set_video_mode_real(self):
+        self.main_widget.video_streaming_thread.set_real_video_mode()
+
+    def set_video_mode_skeletal(self):
+        self.main_widget.video_streaming_thread.set_skeletal_video_mode()
 
     @pyqtSlot(list)
     def update_people_list(self, people):
@@ -175,7 +240,8 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == '__main__':
+    args = parse_arguments()
     app = QApplication(sys.argv)
-    a = MainWindow()
+    a = MainWindow(args)
     a.show()
     sys.exit(app.exec())

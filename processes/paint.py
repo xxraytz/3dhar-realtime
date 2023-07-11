@@ -25,8 +25,6 @@ def get_person_id(skeleton, ):
 
 
 def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
-    body_number = list(frame.keys())[0]
-    frame: KinectFrame = frame.get(body_number)
     skeletons = frame.skeleton_frames
     if video_mode is VideoMode.REAL:
         color_image = frame.color_frame
@@ -66,33 +64,11 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
     return color_image
 
 
-def paint(paint_conn, config):
-    video_mode = VideoMode.REAL
-
+def paint(frame, config, video_mode):
     saved_color_image = cv2.imread('_color_image.png')
-    # window_name = 'Fall Detection System'
-    # color_image = None
     with open(config, 'r') as stream:
         config = json.load(stream)
         skeleton_lines = config["SKELETON_LINES"]
-
-    while True:
-        if paint_conn.poll():
-            data = paint_conn.recv()
-            if data is None:
-                break
-            else:
-                color_image = generate_image(saved_color_image, data, video_mode, skeleton_lines)
-                color_image = cv2.resize(color_image, (1920, 1080))
-
-                paint_conn.send(color_image)
-            # cv2.imshow(window_name, color_image)
-            # key = cv2.waitKey(1)
-            # if key in video_mode.get_all():
-            #     video_mode = VideoMode(key)
-            # if key == ord('q'):
-            #     break
-            # if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) == 0:
-            #     break
-    #
-    # cv2.destroyAllWindows()
+    color_image = generate_image(saved_color_image, frame, video_mode, skeleton_lines)
+    color_image = cv2.resize(color_image, (1920, 1080))
+    return color_image

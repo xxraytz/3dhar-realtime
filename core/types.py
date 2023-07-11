@@ -6,7 +6,7 @@ from typing import NamedTuple
 from multiprocessing import Queue, Process, Pipe, Event
 
 from pykinect2_emu.pykinect2_emu import KinectEmulator
-from processes.id_monitoring import identify, MState
+from processes.id_monitoring import MState
 from processes.fall_event import send_preprocessing, Call
 
 
@@ -31,7 +31,7 @@ class Joint(NamedTuple):
 
 class SkeletonFrame:
 
-    def __init__(self, coords, screen_coords, player_id) -> object:
+    def __init__(self, coords, screen_coords, player_id='NoID') -> object:
         """constructor"""
         self.player_coordinates = coords
         self.player_screen_coordinates = screen_coords
@@ -173,7 +173,7 @@ class KinectFrameReader:
         return joints
 
 
-class PersonIdentification:
+class PersonIdentificationOld:
     def __init__(self, id_delay, t_monitoring, bodies_count, conf):
         self.__bodies_count = bodies_count
         self.__conf = conf
