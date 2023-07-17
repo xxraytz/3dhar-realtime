@@ -117,6 +117,7 @@ class VideoStreamingThread(QThread):
 
 class PeopleMonitoringThread(QThread):
     send_calculated_indexes = pyqtSignal(list)
+    send_people_information = pyqtSignal(list)
 
     def __init__(self, config, body_number):
         super().__init__()
@@ -126,6 +127,13 @@ class PeopleMonitoringThread(QThread):
         self.__t = 10 * 1e3
         self.__delay = 5 * 1e3
         self.pid = PersonIdentification(body_number)
+        self.__people = None
+
+    def database_connect(self):
+        self.pid.database_connect()
+        self.__people = self.pid.get_people()
+        print(self.__people)
+        self.send_people_information.emit(self.__people)
 
     def run(self):
         self.pid.start_monitoring()
@@ -135,10 +143,7 @@ class PeopleMonitoringThread(QThread):
             frame = (self.queue.get()).skeleton_frames
             if frame:
                 self.pid.append_frame(frame)
-        logger.info('test')
         pids = self.pid.get_person_id()
-        time.sleep(5)
-        logger.info('test')
         logger.info(pids)
         self.send_calculated_indexes.emit(pids)
 

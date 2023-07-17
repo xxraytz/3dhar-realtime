@@ -45,7 +45,7 @@ def parse_arguments():
 
 
 class App(QWidget):
-    update_people_list = pyqtSignal(list)
+    set_people_list = pyqtSignal(list)
     set_monitoring_people_list = pyqtSignal(list)
 
     def __init__(self, config):
@@ -75,11 +75,14 @@ class App(QWidget):
 
         self.video_streaming_thread.video_frame_sending.connect(self.update_image)
         self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
+        self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
         self.main_thread.video_frame_generate.connect(self.video_streaming_thread.queue.put)
         self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
 
+    def start(self):
         self.main_thread.start()
         self.video_streaming_thread.start()
+        self.people_monitoring_thread.database_connect()
         self.people_monitoring_thread.start()
 
     def pause(self):
@@ -109,7 +112,7 @@ class App(QWidget):
 
     @pyqtSlot(list)
     def update_people_identification_list(self, people):
-        self.update_people_list.emit(people)
+        self.set_people_list.emit(people)
 
 
 class PeopleListWindow(QWidget):
@@ -196,7 +199,6 @@ class MainWindow(QMainWindow):
         choose_people_to_id.setStatusTip('Choose more than one people to identify')
         choose_people_to_id.triggered.connect(self.on_choose_people)
 
-        # setting_menu.addAction(change_video_mode_action)
         setting_menu.addAction(choose_people_to_id)
 
         video_mode_group = QActionGroup(self, )
@@ -211,11 +213,13 @@ class MainWindow(QMainWindow):
         self.video_mode_skeletal.triggered.connect(self.set_video_mode_skeletal)
         self.video_mode_real.triggered.connect(self.set_video_mode_real)
 
+        self.main_widget.set_people_list.connect(self.update_people_list)
         video_mode_group.addAction(self.video_mode_real)
         video_mode_group.addAction(self.video_mode_skeletal)
 
         change_video_mode_action.addAction(self.video_mode_real)
         change_video_mode_action.addAction(self.video_mode_skeletal)
+        self.main_widget.start()
 
     def set_video_mode_real(self):
         self.main_widget.video_streaming_thread.set_real_video_mode()
@@ -226,7 +230,6 @@ class MainWindow(QMainWindow):
     @pyqtSlot(list)
     def update_people_list(self, people):
         self.people_window.set_people_list(people)
-        print(self.people_window.string_list)
 
     def on_choose_people(self):
         self.people_window.show()

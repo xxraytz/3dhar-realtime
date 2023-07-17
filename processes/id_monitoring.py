@@ -37,8 +37,9 @@ class PersonIdentification:
         self.train_x = None
         self.train_y = None
         self.__body_number = body_number
+        self.__people_indexes = ['NoID'] * self.__body_number
 
-    def start_monitoring(self):
+    def database_connect(self):
         self.database = get_database(os.environ.get('database_path'))
         self.database = [el[:, :-1] for el in self.database]
         self.database = height_correction(self.database, DATABASE_HEIGHT)
@@ -48,6 +49,7 @@ class PersonIdentification:
         self.train_x, self.train_y, _ = get_profiles()
         self.train_x = self.train_x[:, [4, 10, 11, 15, 28]]
 
+    def start_monitoring(self):
         for i in range(0, self.__body_number):
             self.skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
 
@@ -57,7 +59,7 @@ class PersonIdentification:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
     def get_person_id(self):
-        ids = ['NoID'] * len(self.skeletons)
+        ids = ['NoID'] * self.__body_number
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) > 10:
                 video = list(map(lambda x:
@@ -77,7 +79,7 @@ class PersonIdentification:
                 # ids[i] = get_person_id(profile, database_profiles)
                 classes = np.unique(self.train_y)
                 ids[i] = calc_measure(test_x, *get_train_params(self.train_x, self.train_y, classes),
-                                      classes, measure='mahalanobis')
+                                      classes, measure='euclidean')
         return ids
 
     def get_people(self):
