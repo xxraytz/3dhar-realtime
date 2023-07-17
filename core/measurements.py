@@ -51,7 +51,6 @@ def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'
     values = None
     for x in x_test:
         if measure == 'mahalanobis':
-            print('here')
             values = np.array([
                 mahalanobis((x - ms[j]) / sko[j],
                             center[j],

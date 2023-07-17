@@ -77,7 +77,8 @@ class App(QWidget):
         self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
         self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
         self.main_thread.video_frame_generate.connect(self.video_streaming_thread.queue.put)
-        self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
+        self.main_thread.video_frame_generate.connect(self.monitoring_append)
+        # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
 
     def start(self):
         self.main_thread.start()
@@ -87,6 +88,11 @@ class App(QWidget):
 
     def pause(self):
         self.main_thread.pause()
+
+    @pyqtSlot(object)
+    def monitoring_append(self, image):
+        if not self.people_monitoring_thread.is_busy():
+            self.people_monitoring_thread.queue.put(image)
 
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):

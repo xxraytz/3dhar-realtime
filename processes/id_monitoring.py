@@ -71,17 +71,11 @@ class PersonIdentification:
                 video = align_on_the_floor(video)
                 video = skeleton_overlay(video)
                 video = list(filter(lambda x: np.abs(x[4][0] - x[7][0]) > 0.130, video))
-                print('1', flush=True)
-                dm = basic_assembly_metric(self.database, video)
-                print('2', flush=True)
+                dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
                 test_x = div_profiles(dm)
-                try:
-                    test_x = test_x[:, [4, 10, 11, 15, 28]]
-                except IndexError:
-                    print(test_x)
                 classes = np.unique(self.train_y)
                 ids[i] = calc_measure(test_x, *get_train_params(self.train_x, self.train_y, classes),
-                                      classes, measure='mahalanobis')
+                                      classes, measure='euclidean')
         return ids
 
     def get_people(self):
