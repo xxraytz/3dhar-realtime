@@ -124,8 +124,9 @@ class PeopleMonitoringThread(QThread):
         self._run_flag = True
         self._pause_flag = False
         self.queue = queue.Queue()
-        self.__t = 10 * 1e3
-        self.__delay = 5 * 1e3
+        self.__t = 10 * 1e3  # sec
+        self.__delay = 5 * 1e3  # sec
+        self.waiting = False
         self.pid = PersonIdentification(body_number)
         self.__people = None
 
@@ -137,12 +138,14 @@ class PeopleMonitoringThread(QThread):
 
     def run(self):
         self.pid.start_monitoring()
+        self.waiting = False
         timer = QElapsedTimer()
         timer.start()
         while timer.elapsed() < self.__t:
             frame = (self.queue.get()).skeleton_frames
             if frame:
                 self.pid.append_frame(frame)
+        self.waiting = True
         pids = self.pid.get_person_id()
         logger.info(pids)
         self.send_calculated_indexes.emit(pids)
@@ -151,7 +154,7 @@ class PeopleMonitoringThread(QThread):
         print('here')
         QTimer.singleShot(self.__delay, self.start)
         self._run_flag = False
-        self.wait()
+        # self.wait()
 
     def get_all_people(self):
         return self.pid.get_people()
