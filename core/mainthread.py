@@ -91,12 +91,13 @@ class VideoStreamingThread(QThread):
         self._pause_flag = False
         self.__video_mode = VideoMode.REAL
         self.conf = config
+        self.__indexes = ['NoID'] * 6
 
     def run(self):
         while True:
             frame = self.queue.get()
             if frame:
-                image = paint(frame, self.conf, self.__video_mode)
+                image = paint(frame, self.conf, self.__video_mode, self.__indexes)
                 self.video_frame_sending.emit(image)
             else:
                 continue
@@ -110,6 +111,9 @@ class VideoStreamingThread(QThread):
 
     def set_skeletal_video_mode(self):
         self.__video_mode = VideoMode.SKELETAL
+
+    def set_indexes(self, inds):
+        self.__indexes = inds
 
     def pause(self):
         self._pause_flag = not self._pause_flag
@@ -145,13 +149,16 @@ class PeopleMonitoringThread(QThread):
             if frame:
                 self.pid.append_frame(frame)
         self._busy_flag = True
-        pids = self.pid.get_person_id()
+        pids = self.pid.get_person_id(self.__people)
         logger.info(pids)
         self.send_calculated_indexes.emit(pids)
         self._busy_flag = False
 
     def is_busy(self):
         return self._busy_flag
+
+    def set_monitoring_people(self, people):
+        self.__people = people
 
     def stop(self):
         QTimer.singleShot(self.__delay, self.start)

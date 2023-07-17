@@ -36,6 +36,7 @@ class PersonIdentification:
         self.database = None
         self.train_x = None
         self.train_y = None
+        self.classes = None
         self.__body_number = body_number
         self.__people_indexes = ['NoID'] * self.__body_number
 
@@ -46,8 +47,19 @@ class PersonIdentification:
         self.database = align_on_the_floor(self.database)
         self.database = skeleton_overlay(self.database)
 
+        self.reset_train_set()
+
+    def reset_train_set(self):
         self.train_x, self.train_y, _ = get_profiles()
         self.train_x = self.train_x[:, [4, 10, 11, 15, 28]]
+        self.classes = np.unique(self.train_y)
+
+    def select_people_in_train_set(self, people_list):
+        self.reset_train_set()
+        self.train_x = self.train_x[np.where(self.train_y == people_list[0])]
+        self.train_y = self.train_y[np.where(self.train_y == people_list[0])]
+        self.classes = np.unique(self.train_y)
+
 
     def start_monitoring(self):
         for i in range(0, self.__body_number):
@@ -58,7 +70,10 @@ class PersonIdentification:
             if sk_ind is not None:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
-    def get_person_id(self):
+    def get_person_id(self, mon_people=None):
+        print('mon', mon_people)
+        if not np.array_equal(mon_people, self.classes):
+            self.select_people_in_train_set(mon_people)
         ids = ['NoID'] * self.__body_number
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) > 10:
@@ -73,9 +88,8 @@ class PersonIdentification:
                 video = list(filter(lambda x: np.abs(x[4][0] - x[7][0]) > 0.130, video))
                 dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
                 test_x = div_profiles(dm)
-                classes = np.unique(self.train_y)
-                ids[i] = calc_measure(test_x, *get_train_params(self.train_x, self.train_y, classes),
-                                      classes, measure='euclidean')
+                ids[i] = calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes),
+                                      self.classes, measure='euclidean')
         return ids
 
     def get_people(self):

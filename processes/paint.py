@@ -24,7 +24,7 @@ def get_person_id(skeleton, ):
     print(skeleton)
 
 
-def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
+def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes):
     skeletons = frame.skeleton_frames
     if video_mode is VideoMode.REAL:
         color_image = frame.color_frame
@@ -41,7 +41,7 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
         for i, sk in enumerate(skeletons):
             if sk is not None:
                 screen_coordinates = sk.player_screen_coordinates
-                person_id = sk.player_ID
+                person_id = indexes[i]
                 if person_id == 'NoID':
                     id_rgb = (237, 72, 48)
                 elif person_id == 'Reloading...':
@@ -64,11 +64,11 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines):
     return color_image
 
 
-def paint(frame, config, video_mode):
+def paint(frame, config, video_mode, indexes):
     saved_color_image = cv2.imread('_color_image.png')
     with open(config, 'r') as stream:
         config = json.load(stream)
         skeleton_lines = config["SKELETON_LINES"]
-    color_image = generate_image(saved_color_image, frame, video_mode, skeleton_lines)
+    color_image = generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes)
     color_image = cv2.resize(color_image, (1920, 1080))
     return color_image

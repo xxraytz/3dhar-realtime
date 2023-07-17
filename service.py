@@ -46,7 +46,6 @@ def parse_arguments():
 
 class App(QWidget):
     set_people_list = pyqtSignal(list)
-    set_monitoring_people_list = pyqtSignal(list)
 
     def __init__(self, config):
         super().__init__()
@@ -86,6 +85,10 @@ class App(QWidget):
         self.people_monitoring_thread.database_connect()
         self.people_monitoring_thread.start()
 
+    @pyqtSlot(list)
+    def set_monitoring_people_list(self, people):
+        self.people_monitoring_thread.set_monitoring_people(people)
+
     def pause(self):
         self.main_thread.pause()
 
@@ -97,6 +100,7 @@ class App(QWidget):
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):
         logger.info(people_ids)
+        self.video_streaming_thread.set_indexes(people_ids)
         self.people_monitoring_thread.stop()
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -122,6 +126,8 @@ class App(QWidget):
 
 
 class PeopleListWindow(QWidget):
+    change_monitoring_people_list = pyqtSignal(list)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Choose a people to recognize")
@@ -171,6 +177,7 @@ class PeopleListWindow(QWidget):
 
         if len(selected_strings) > 0:
             QMessageBox.information(self, 'Выбранные строки', "\n".join(selected_strings))
+            self.change_monitoring_people_list.emit(selected_strings)
             self.close()
         else:
             QMessageBox.warning(self, "Предупреждение", "Не выбрано ни одной строки")
@@ -222,6 +229,8 @@ class MainWindow(QMainWindow):
         self.main_widget.set_people_list.connect(self.update_people_list)
         video_mode_group.addAction(self.video_mode_real)
         video_mode_group.addAction(self.video_mode_skeletal)
+
+        self.people_window.change_monitoring_people_list.connect(self.main_widget.set_monitoring_people_list)
 
         change_video_mode_action.addAction(self.video_mode_real)
         change_video_mode_action.addAction(self.video_mode_skeletal)
