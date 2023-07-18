@@ -76,7 +76,7 @@ class App(QWidget):
         self.video_streaming_thread.video_frame_sending.connect(self.update_image)
         self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
         self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
-        self.main_thread.video_frame_generate.connect(self.video_streaming_thread.queue.put)
+        self.main_thread.video_frame_generate.connect(self.video_streaming_append)
         self.main_thread.video_frame_generate.connect(self.monitoring_append)
         # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
 
@@ -97,6 +97,11 @@ class App(QWidget):
     def monitoring_append(self, image):
         if not self.people_monitoring_thread.is_busy():
             self.people_monitoring_thread.queue.put(image)
+
+    @pyqtSlot(object)
+    def video_streaming_append(self, image):
+        if self.video_streaming_thread.queue.empty():
+            self.video_streaming_thread.queue.put(image)
 
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):
@@ -238,7 +243,7 @@ class MainWindow(QMainWindow):
         self.main_widget.start()
 
     def resizeEvent(self, a0: QResizeEvent) -> None:
-        print('hi')
+        ...
 
     def set_video_mode_real(self):
         self.main_widget.video_streaming_thread.set_real_video_mode()

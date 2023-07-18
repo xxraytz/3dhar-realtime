@@ -109,6 +109,8 @@ class KinectFrameReader:
         self.kinect = kinect
         self.bodies = None
         self.__has_body_tracked = False
+        self.kinect_joints = None
+        self.joints = None
 
     def get_max_body_count(self):
         return self.kinect.max_body_count
@@ -133,18 +135,19 @@ class KinectFrameReader:
 
     def set_bodies(self):
         if self.has_new_bodies():
-            self.bodies = self.get_body_frame()
+            bodies = self.get_body_frame()
+            self.bodies = bodies.bodies
             self.__has_body_tracked = False
             return True
 
     def get_bodies(self):
-        return self.bodies.bodies
+        return self.bodies
 
     def get_body(self, index):
-        return self.bodies.bodies[index]
+        return self.bodies[index]
 
     def is_body_tracked(self, index):
-        if self.bodies.bodies[index].is_tracked:
+        if self.bodies[index].is_tracked:
             self.__has_body_tracked = True
             return True
         else:
@@ -154,23 +157,41 @@ class KinectFrameReader:
         return self.__has_body_tracked
 
     def get_joints(self, index):
-        joints = []
-        for joint in self.bodies.bodies[index].joints:
-            joints.append([joint.Position.x * 1e3,
-                           joint.Position.y * 1e3,
-                           joint.Position.z * 1e3,
-                           joint.TrackingState])
+        kinect_joints = self.bodies[index].joints
+        # for joint in body.joints:
+        #     joints.append([joint.Position.x * 1e3,
+        #                    joint.Position.y * 1e3,
+        #                    joint.Position.z * 1e3,
+        #                    joint.TrackingState])
 
+        return kinect_joints
+
+    def get_skeleton_space_joints(self, index, usable_joints):
+        joints = []
+        kinect_joints = self.bodies[index].joints
+        for j in usable_joints:
+            joints.append([kinect_joints[j].Position.x * 1e3,
+                           kinect_joints[j].Position.y * 1e3,
+                           kinect_joints[j].Position.z * 1e3,
+                           kinect_joints[j].TrackingState])
+        # for joint in body.joints:
+        #     joints.append([joint.Position.x * 1e3,
+        #                    joint.Position.y * 1e3,
+        #                    joint.Position.z * 1e3,
+        #                    joint.TrackingState])
         return joints
 
-    def get_color_space_joints(self, index):
+    def get_color_space_joints(self, index, usable_indexes):
         joints = []
         for joint in self.kinect.body_joints_to_color_space(self.get_body(index).joints):
             if math.isinf(joint.x) and math.isinf(joint.y):
                 joints.append([0, 0])
             else:
                 joints.append([int(joint.x), int(joint.y)])
-        return joints
+        usable_joints = []
+        for j in usable_indexes:
+            usable_joints.append(joints[j])
+        return usable_joints
 
 
 class PersonIdentificationOld:

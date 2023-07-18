@@ -26,7 +26,7 @@ from processes.id_monitoring import PersonIdentification
 from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal, QElapsedTimer, QTimer
 
 # CONSTANTS
-KINECT_FREQUENCY = 0.033
+KINECT_FREQUENCY = 0.04
 
 
 # SKELETON_POINTS_COUNT: int
@@ -197,12 +197,12 @@ class MainThread(QThread):
         # capture_picture()
 
         # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-
+        #
         with PyKinectRuntime.PyKinectRuntime(
                 PyKinectV2.FrameSourceTypes_Color
                 | PyKinectV2.FrameSourceTypes_Body
                 | PyKinectV2.FrameSourceTypes_Depth) as kinect:
-
+            #
             kinect_device = KinectFrameReader(kinect)
             time.sleep(1)
 
@@ -217,14 +217,15 @@ class MainThread(QThread):
                         for body_index in range(0, kinect_device.get_max_body_count()):
                             if not kinect_device.is_body_tracked(body_index):
                                 continue
-                            joints_skeleton_space = kinect_device.get_joints(body_index)  # Joints in a skeleton space
-                            joints_color_space = kinect_device.get_color_space_joints(body_index)
+                            _ = kinect_device.get_joints(body_index)  # Joints in a skeleton space
+                            joints_skeleton_space = kinect_device.get_skeleton_space_joints(body_index, self.using_skeleton_joints.values())  # Joints in a skeleton space
 
-                            player_coordinates = [Joint(*joints_skeleton_space[j]) for j in
-                                                  self.using_skeleton_joints.values()]
+                            joints_color_space = kinect_device.get_color_space_joints(body_index, self.using_skeleton_joints.values())
 
-                            player_screen_coordinates = [SJoints(*joints_color_space[j]) for j in
-                                                         self.using_skeleton_joints.values()]
+                            player_coordinates = [Joint(*j) for j in
+                                                  joints_skeleton_space]
+
+                            player_screen_coordinates = [SJoints(*j) for j in joints_color_space]
 
                             kinect_frame.skeleton_frames[body_index] = SkeletonFrame(player_coordinates,
                                                                                      player_screen_coordinates)
