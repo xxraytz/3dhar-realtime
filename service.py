@@ -121,13 +121,13 @@ if __name__ == '__main__':
 
     # capture_picture()
 
-    with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        #
-        # with PyKinectRuntime.PyKinectRuntime(
-        #         PyKinectV2.FrameSourceTypes_Color
-        #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+    # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
 
+    with PyKinectRuntime.PyKinectRuntime(
+            PyKinectV2.FrameSourceTypes_Color
+            | PyKinectV2.FrameSourceTypes_Body
+            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        #
         kinect_device = KinectFrameReader(kinect)
 
         if visual == VisualMode.VIDEO.value:
@@ -149,6 +149,8 @@ if __name__ == '__main__':
                     person_identification.start_id()
 
                 kinect_frame = KinectFrame(kinect_device.get_max_body_count())
+                kinect_frame.set_color_width(kinect_device.get_color_size()[0])
+                kinect_frame.set_color_height(kinect_device.get_color_size()[1])
                 kinect_frame.set_color_frame(kinect_device.get_color_frame())
 
                 if kinect_device.set_bodies():

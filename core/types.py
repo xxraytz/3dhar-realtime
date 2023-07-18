@@ -79,7 +79,6 @@ class KinectFrame:
         return self.__depth_frame_height
 
     def set_color_frame(self, color_frame):
-        self.__color_frame_width, self.__color_frame_height = color_frame.shape[:2][::-1]
         self.color_frame = color_frame
 
     def set_color_width(self, value):
