@@ -71,7 +71,6 @@ class PersonIdentification:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
     def get_person_id(self, mon_people=None):
-        print('mon', mon_people)
         if not np.array_equal(mon_people, self.classes):
             self.select_people_in_train_set(mon_people)
         ids = ['NoID'] * self.__body_number

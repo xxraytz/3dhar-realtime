@@ -10,7 +10,8 @@ import numpy as np
 import sys
 from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton, QToolBar, QMainWindow, QStatusBar, \
     QScrollArea, QListView, QMessageBox
-from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup
+from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup, \
+    QResizeEvent
 from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -50,7 +51,7 @@ class App(QWidget):
     def __init__(self, config):
         super().__init__()
         self.conf = config
-        self.size = (640, 480)
+        self.size = (1280, 800)
         self.image_label = QLabel(self)
         self.image_label.resize(*self.size)
         self.text_label = QLabel('OpenCV demo')
@@ -132,7 +133,7 @@ class PeopleListWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Choose a people to recognize")
         self.resize(300, 400)
-        self.string_list = ['String 1', 'String 2', 'String 3', 'String 4', ]
+        self.string_list = []
 
         layout = QVBoxLayout()
         list_widget = QWidget()
@@ -221,7 +222,7 @@ class MainWindow(QMainWindow):
         self.video_mode_real.setStatusTip("Real video")
         self.video_mode_skeletal.setCheckable(True)
         self.video_mode_real.setCheckable(True)
-        self.video_mode_real.setChecked(True)
+        self.video_mode_skeletal.setChecked(True)
 
         self.video_mode_skeletal.triggered.connect(self.set_video_mode_skeletal)
         self.video_mode_real.triggered.connect(self.set_video_mode_real)
@@ -235,6 +236,9 @@ class MainWindow(QMainWindow):
         change_video_mode_action.addAction(self.video_mode_real)
         change_video_mode_action.addAction(self.video_mode_skeletal)
         self.main_widget.start()
+
+    def resizeEvent(self, a0: QResizeEvent) -> None:
+        print('hi')
 
     def set_video_mode_real(self):
         self.main_widget.video_streaming_thread.set_real_video_mode()
