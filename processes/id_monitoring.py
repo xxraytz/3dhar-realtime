@@ -56,10 +56,9 @@ class PersonIdentification:
 
     def select_people_in_train_set(self, people_list):
         self.reset_train_set()
-        self.train_x = self.train_x[np.where(self.train_y == people_list[0])]
-        self.train_y = self.train_y[np.where(self.train_y == people_list[0])]
+        self.train_x = self.train_x[np.where(self.train_y == np.array(people_list)[:, None])[1]]
+        self.train_y = self.train_y[np.where(self.train_y == np.array(people_list)[:, None])[1]]
         self.classes = np.unique(self.train_y)
-
 
     def start_monitoring(self):
         for i in range(0, self.__body_number):
@@ -71,6 +70,8 @@ class PersonIdentification:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
     def get_person_id(self, mon_people=None):
+        print()
+        print("New identification")
         if not np.array_equal(mon_people, self.classes):
             self.select_people_in_train_set(mon_people)
         ids = ['NoID'] * self.__body_number
@@ -87,18 +88,19 @@ class PersonIdentification:
                 video = list(filter(lambda x: np.abs(x[4][0] - x[7][0]) > 0.130, video))
                 dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
                 test_x = div_profiles(dm)
+                print(f'ID: {i}', flush=True)
                 ids[i] = calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes),
-                                      self.classes, measure='euclidean')
+                                      self.classes, measure='mahalanobis')
         return ids
 
     def get_people(self):
         return np.unique(self.train_y)
 
 
-def get_person_id(cur, stored):
-    train_x, train_y, ro_values = stored
-    return knn(np.asarray(train_x, dtype=np.float64), np.asarray(train_y),
-               np.asarray(cur, dtype=np.float64), ro_values, 3)
+# def get_person_id(cur, stored):
+#     train_x, train_y, ro_values = stored
+#     return knn(np.asarray(train_x, dtype=np.float64), np.asarray(train_y),
+#                np.asarray(cur, dtype=np.float64), ro_values, 3)
 
 
 def div_profiles(dm):

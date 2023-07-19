@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread
 import cv2
@@ -12,7 +13,7 @@ from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushBut
     QScrollArea, QListView, QMessageBox
 from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup, \
     QResizeEvent
-from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal, QTimer
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -54,7 +55,12 @@ class App(QWidget):
         self.size = (1280, 800)
         self.image_label = QLabel(self)
         self.image_label.resize(*self.size)
-        self.text_label = QLabel('OpenCV demo')
+        self.text_label = QLabel('', )
+        self.text_label.setStyleSheet("background-color:white; color:red; font-size:20px; font-weight:bold")
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(False)
+        self.timer.timeout.connect(self.hide_label)
+
         self.pause_button = QPushButton()
         self.pause_button.setText('pause')
         self.pause_button.setFixedWidth(300)
@@ -79,6 +85,13 @@ class App(QWidget):
         self.main_thread.video_frame_generate.connect(self.video_streaming_append)
         self.main_thread.video_frame_generate.connect(self.monitoring_append)
         # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
+
+    def hide_label(self):
+        self.text_label.setText('')
+
+    def show_label(self):
+        self.text_label.setText('IDs have been updated')
+        self.timer.start(1500)
 
     def start(self):
         self.main_thread.start()
@@ -106,6 +119,7 @@ class App(QWidget):
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):
         logger.info(people_ids)
+        self.show_label()
         self.video_streaming_thread.set_indexes(people_ids)
         self.people_monitoring_thread.stop()
 

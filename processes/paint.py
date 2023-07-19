@@ -44,7 +44,7 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
                 person_id = indexes[i]
                 if person_id == 'NoID':
                     id_rgb = (237, 72, 48)
-                elif person_id == 'Reloading...':
+                elif person_id == 'RELOADING...':
                     id_rgb = (34, 254, 254)
                 else:
                     id_rgb = (96, 230, 0)
