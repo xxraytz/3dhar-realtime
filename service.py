@@ -1,9 +1,6 @@
 import argparse
 import json
 import logging
-import os
-import time
-from datetime import datetime
 from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread
 import cv2
 import numpy as np
@@ -13,7 +10,7 @@ from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushBut
     QScrollArea, QListView, QMessageBox
 from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup, \
     QResizeEvent
-from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QTimer
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)

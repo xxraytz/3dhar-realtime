@@ -1,7 +1,6 @@
 import json
 
 from core.types import SJoints
-from core.types import KinectFrame
 import cv2 as cv2
 import numpy as np
 from enum import Enum

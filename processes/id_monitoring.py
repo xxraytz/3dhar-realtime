@@ -4,12 +4,10 @@ from collections import deque
 from enum import Enum
 from core.measurements import knn, calc_measure_svc
 from core.measurements import calc_measure, get_train_params
-from scipy.spatial import distance
 import numpy as np
 from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
 from core.skeleton_zero_view import skeleton_correction
 import pickle
-from sklearn.svm import SVC
 from sklearn.metrics import pairwise_distances
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
