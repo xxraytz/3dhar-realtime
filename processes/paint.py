@@ -47,7 +47,8 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
                 elif person_id == 'RELOADING...':
                     id_rgb = (34, 254, 254)
                 else:
-                    id_rgb = (96, 230, 0)
+                    id_rgb = (41, 0, 246)
+                    # id_rgb = (96, 230, 0)
                 for line in skeleton_lines:
                     if not (screen_coordinates[line[0]] == SJoints(0, 0)
                             or screen_coordinates[line[1]] == SJoints(0, 0)):
@@ -60,7 +61,7 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
                     cv2.putText(color_image, f"{i}. {person_id}",
                                 (sk.player_screen_coordinates[3][0] + 20, sk.player_screen_coordinates[3][1] + 5),
                                 cv2.FONT_HERSHEY_SIMPLEX,
-                                1, id_rgb, 3, 2)
+                                1, id_rgb, 2, 2)
     return color_image
 
 

@@ -2,13 +2,14 @@ import logging
 import os
 from collections import deque
 from enum import Enum
-from core.measurements import knn
+from core.measurements import knn, calc_measure_svc
 from core.measurements import calc_measure, get_train_params
 from scipy.spatial import distance
 import numpy as np
 from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
 from core.skeleton_zero_view import skeleton_correction
-
+import pickle
+from sklearn.svm import SVC
 from sklearn.metrics import pairwise_distances
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -39,6 +40,7 @@ class PersonIdentification:
         self.classes = None
         self.__body_number = body_number
         self.__people_indexes = ['NoID'] * self.__body_number
+        self.svm_classifier = None
 
     def database_connect(self):
         self.database = get_database(os.environ.get('database_path'))
@@ -46,7 +48,8 @@ class PersonIdentification:
         self.database = height_correction(self.database, DATABASE_HEIGHT)
         self.database = align_on_the_floor(self.database)
         self.database = skeleton_overlay(self.database)
-
+        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/file.pickle', 'rb') as handle:
+            self.svm_classifier = pickle.load(handle)
         self.reset_train_set()
 
     def reset_train_set(self):
@@ -89,8 +92,10 @@ class PersonIdentification:
                 dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
                 test_x = div_profiles(dm)
                 print(f'ID: {i}', flush=True)
-                ids[i] = calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes),
-                                      self.classes, measure='mahalanobis')
+                ids[i] = (
+                    f"{calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes), self.classes, measure='mahalanobis')}",
+                    f'{calc_measure_svc(test_x, self.svm_classifier, self.classes)}'
+                )
         return ids
 
     def get_people(self):

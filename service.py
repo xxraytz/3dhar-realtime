@@ -56,7 +56,7 @@ class App(QWidget):
         self.image_label = QLabel(self)
         self.image_label.resize(*self.size)
         self.text_label = QLabel('', )
-        self.text_label.setStyleSheet("background-color:white; color:red; font-size:20px; font-weight:bold")
+        self.text_label.setStyleSheet("background-color:white; color:red; font-size:60px; font-weight:bold")
         self.timer = QTimer(self)
         self.timer.setSingleShot(False)
         self.timer.timeout.connect(self.hide_label)
@@ -120,7 +120,7 @@ class App(QWidget):
     def set_people_indexes(self, people_ids):
         logger.info(people_ids)
         self.show_label()
-        self.video_streaming_thread.set_indexes(people_ids)
+        self.video_streaming_thread.set_indexes([f'{x}' for x in people_ids])
         self.people_monitoring_thread.stop()
 
     def closeEvent(self, event: QCloseEvent) -> None:

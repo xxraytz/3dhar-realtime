@@ -75,5 +75,14 @@ def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'
     return most_common(res)
 
 
+def calc_measure_svc(x_test, clf, class_names):
+    res = []
+    values = None
+    for i, x in enumerate(x_test):
+        values = clf.predict(x_test)[0]
+        res.append(values)
+    return most_common(res)
+
+
 def most_common(lst):
     return max(set(lst), key=lst.count) if len(lst) > 0 else 'NoID'

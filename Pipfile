@@ -15,10 +15,10 @@ djangorestframework = "*"
 djangorestframework-simplejwt = "*"
 django-crispy-forms = "*"
 django-phone-field = "*"
-scikit-learn = "==1.1.3"
 django-filter = "*"
 scipy = "*"
 pyqt6 = "*"
+scikit-learn = "*"
 
 [dev-packages]
 
