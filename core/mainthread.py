@@ -121,6 +121,7 @@ class VideoStreamingThread(QThread):
 
 class PeopleMonitoringThread(QThread):
     send_calculated_indexes = pyqtSignal(list)
+    send_debug_info = pyqtSignal(dict)
     send_people_information = pyqtSignal(list)
 
     def __init__(self, config, body_number):
@@ -137,7 +138,6 @@ class PeopleMonitoringThread(QThread):
     def database_connect(self):
         self.pid.database_connect()
         self.__people = self.pid.get_people()
-        print(self.__people)
         self.send_people_information.emit(self.__people)
 
     def run(self):
@@ -149,9 +149,10 @@ class PeopleMonitoringThread(QThread):
             if frame:
                 self.pid.append_frame(frame)
         self._busy_flag = True
-        pids = self.pid.get_person_id(self.__people)
+        pids, debug_info = self.pid.get_person_id(self.__people)
         logger.info(pids)
         self.send_calculated_indexes.emit(pids)
+        self.send_debug_info.emit(debug_info)
         self._busy_flag = False
 
     def is_busy(self):
@@ -196,12 +197,12 @@ class MainThread(QThread):
 
         # capture_picture()
 
-        # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-
-        with PyKinectRuntime.PyKinectRuntime(
-                PyKinectV2.FrameSourceTypes_Color
-                | PyKinectV2.FrameSourceTypes_Body
-                | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+        #
+        # with PyKinectRuntime.PyKinectRuntime(
+        #         PyKinectV2.FrameSourceTypes_Color
+        #         | PyKinectV2.FrameSourceTypes_Body
+        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
             kinect_device = KinectFrameReader(kinect)
             time.sleep(1)

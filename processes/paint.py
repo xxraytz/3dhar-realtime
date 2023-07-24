@@ -19,10 +19,6 @@ class VideoMode(Enum):
         return [self.REAL.value, self.SKELETAL.value]
 
 
-def get_person_id(skeleton, ):
-    print(skeleton)
-
-
 def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes):
     skeletons = frame.skeleton_frames
     if video_mode is VideoMode.REAL:

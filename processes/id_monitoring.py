@@ -2,7 +2,7 @@ import logging
 import os
 from collections import deque
 from enum import Enum
-from core.measurements import knn, calc_measure_svc
+from core.measurements import knn, calc_measure_svc, debug_calc_measure
 from core.measurements import calc_measure, get_train_params
 import numpy as np
 from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
@@ -51,7 +51,7 @@ class PersonIdentification:
         self.reset_train_set()
 
     def reset_train_set(self):
-        self.train_x, self.train_y, _ = get_profiles()
+        self.train_x, self.train_y = get_profiles()
         self.train_x = self.train_x[:, [4, 10, 11, 15, 28]]
         self.classes = np.unique(self.train_y)
 
@@ -76,6 +76,7 @@ class PersonIdentification:
         if not np.array_equal(mon_people, self.classes):
             self.select_people_in_train_set(mon_people)
         ids = ['NoID'] * self.__body_number
+        debug_ids = {}
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) > 10:
                 video = list(map(lambda x:
@@ -92,9 +93,12 @@ class PersonIdentification:
                 print(f'ID: {i}', flush=True)
                 ids[i] = (
                     f"{calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes), self.classes, measure='mahalanobis')}",
-                    f'{calc_measure_svc(test_x, self.svm_classifier, self.classes)}'
+                    f'{calc_measure_svc(test_x, self.svm_classifier)}'
                 )
-        return ids
+                debug_ids[i] = debug_calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes), self.classes)
+                # with open('just_file.txt', 'a+') as handle:
+                #     handle.write(f'ID_{i}: {ids[i]}: {test_x}\n')
+        return ids, debug_ids
 
     def get_people(self):
         return np.unique(self.train_y)
@@ -126,13 +130,13 @@ def get_profiles():
         for line in file:
             profile_names.append(line.split(",")[:1][0])
             profiles.append(np.asarray(line.split(',')[2:], dtype=np.float32))
-    ro_values = {}
-    for name in set(profile_names):
-        indexes = [index for index, value in enumerate(profile_names) if value == name]
-        values = [profiles[i] for i in indexes]
-        d = pairwise_distances(values)
-        ro_values[name] = float(os.environ.get('alpha')) * np.max(d[np.triu_indices(d.shape[0], 1)])
-    return np.asarray(profiles), np.asarray(profile_names), ro_values
+    # ro_values = {}
+    # for name in set(profile_names):
+    #     indexes = [index for index, value in enumerate(profile_names) if value == name]
+        # values = [profiles[i] for i in indexes]
+        # d = pairwise_distances(values)
+        # ro_values[name] = float(os.environ.get('alpha')) * np.max(d[np.triu_indices(d.shape[0], 1)])
+    return np.asarray(profiles), np.asarray(profile_names),  # ro_values
 
 
 def get_database(file):

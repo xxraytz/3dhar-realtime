@@ -7,7 +7,7 @@ import numpy as np
 
 import sys
 from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton, QToolBar, QMainWindow, QStatusBar, \
-    QScrollArea, QListView, QMessageBox
+    QScrollArea, QListView, QMessageBox, QGridLayout
 from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup, \
     QResizeEvent
 from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QTimer
@@ -50,24 +50,36 @@ class App(QWidget):
         super().__init__()
         self.conf = config
         self.size = (1280, 800)
+        self.__people_list = None
         self.image_label = QLabel(self)
         self.image_label.resize(*self.size)
         self.text_label = QLabel('', )
-        self.text_label.setStyleSheet("background-color:white; color:red; font-size:60px; font-weight:bold")
+        self.text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.text_label.setStyleSheet("background-color:white; color:red; font-size:60px; font-weight:bold;"
+                                      "border: 1px")
         self.timer = QTimer(self)
         self.timer.setSingleShot(False)
         self.timer.timeout.connect(self.hide_label)
 
         self.pause_button = QPushButton()
         self.pause_button.setText('pause')
-        self.pause_button.setFixedWidth(300)
+        self.pause_button.setFixedWidth(200)
         self.pause_button.clicked.connect(self.pause)
 
-        vbox = QVBoxLayout()
-        vbox.addWidget(self.image_label)
-        vbox.addWidget(self.text_label)
-        vbox.addWidget(self.pause_button)
-        self.setLayout(vbox, )
+        self.grid_results = QWidget()
+
+        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('Id1'), 0, 1)
+        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('Id2'), 0, 2)
+        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('OS'), 1, 0)
+        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('Egor'), 2, 0)
+        #
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.image_label)
+        self.main_layout.addWidget(self.text_label)
+        self.main_layout.addWidget(self.pause_button)
+        self.main_layout.addWidget(self.grid_results)
+
+        self.setLayout(self.main_layout, )
         grey_image = QPixmap(*self.size)
         grey_image.fill(QColor('grey'))
         self.image_label.setPixmap(grey_image)
@@ -78,17 +90,24 @@ class App(QWidget):
 
         self.video_streaming_thread.video_frame_sending.connect(self.update_image)
         self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
+        self.people_monitoring_thread.send_debug_info.connect(self.debug_get_grid)
         self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
         self.main_thread.video_frame_generate.connect(self.video_streaming_append)
         self.main_thread.video_frame_generate.connect(self.monitoring_append)
         # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
+
+    @staticmethod
+    def __styled_label_for_grid(text):
+        label = QLabel(text)
+        label.setStyleSheet(" color:black; font-size:20px")
+        return label
 
     def hide_label(self):
         self.text_label.setText('')
 
     def show_label(self):
         self.text_label.setText('IDs have been updated')
-        self.timer.start(1500)
+        self.timer.start(1300)
 
     def start(self):
         self.main_thread.start()
@@ -98,6 +117,7 @@ class App(QWidget):
 
     @pyqtSlot(list)
     def set_monitoring_people_list(self, people):
+        self.__people_list = people
         self.people_monitoring_thread.set_monitoring_people(people)
 
     def pause(self):
@@ -112,6 +132,41 @@ class App(QWidget):
     def video_streaming_append(self, image):
         if self.video_streaming_thread.queue.empty():
             self.video_streaming_thread.queue.put(image)
+
+    @pyqtSlot(dict)
+    def debug_get_grid(self, info: dict):
+        if self.__people_list:
+            people_number = len(self.__people_list)
+            grid_info = np.asarray(self.__people_list).reshape(-1, 1)
+            indexes = list(info.keys())
+            header = ["", *indexes]
+            for i in indexes:
+                try:
+                    clf_res = info[i]
+                    parts_number = len(clf_res)
+                    values = np.asarray([res[name] for name in self.__people_list for res in clf_res])
+                    values = values.reshape([people_number, parts_number])
+                    values = ["\n".join(value.astype(str)) for value in values]
+                    grid_info = np.hstack((grid_info, np.asarray(values).reshape(-1, 1)))
+                except IndexError:
+                    logger.info('No more people')
+            grid_info = np.vstack((header, grid_info))
+            self.debug_set_grid_to_interface(grid_info)
+
+    def debug_set_grid_to_interface(self, grid):
+        grid_results_layout = QGridLayout()
+        for i in range(grid.shape[0]):
+            for j in range(grid.shape[1]):
+                grid_results_layout.addWidget(self.__styled_label_for_grid(f'{grid[i, j]}'), i, j)
+        self.main_layout.removeWidget(self.grid_results)
+        self.grid_results = QWidget()
+        self.grid_results.setLayout(grid_results_layout)
+        self.grid_results.adjustSize()
+        self.main_layout.addWidget(self.grid_results)
+        # self.grid_results.update()
+        self.main_layout.update()
+        self.update()
+
 
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):
@@ -190,8 +245,7 @@ class PeopleListWindow(QWidget):
     def on_accept_button_clicked(self):
         selected_indexes = self.list_view.selectedIndexes()
         selected_strings = [self.string_list[index.row()] for index in selected_indexes]
-        print(selected_strings)
-
+        logger.info(f'Selected people: {selected_strings}')
         if len(selected_strings) > 0:
             QMessageBox.information(self, 'Выбранные строки', "\n".join(selected_strings))
             self.change_monitoring_people_list.emit(selected_strings)
@@ -203,6 +257,7 @@ class PeopleListWindow(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, args):
         super(MainWindow, self).__init__()
+        self.setGeometry(100, 100, 0, 0)
         self.people_window = PeopleListWindow()
         self.setWindowTitle("OpenCV video demo")
         self.main_widget = App(get_config(args))
@@ -272,9 +327,11 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         self.main_widget.close()
 
-    @staticmethod
-    def on_click_event(s):
-        print("click", s)
+    def on_click_event(self, s):
+        logger.info(f'Click some of button {s}')
+        self.main_widget.update()
+        self.update()
+
 
 
 if __name__ == '__main__':

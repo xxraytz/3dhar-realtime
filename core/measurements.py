@@ -1,3 +1,6 @@
+import datetime
+import time
+
 import numpy as np
 from scipy.spatial.distance import cdist, mahalanobis, euclidean
 
@@ -66,21 +69,32 @@ def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'
             values = np.array([
                 euclidean((x - ms[j]) / sko[j], center[j]) for j in class_names
             ])
-        # summary_result(list(zip(class_names, values)))
         res = summary_result(list(zip(class_names, values)), res)
         print(f'Part {i}:')
         print("\n".join([f"{x}" for x in list(zip(class_names, values))]), flush=True)
-    print(res, flush=True)
+        print(res, flush=True)
     print()
     return most_common(res)
 
 
-def calc_measure_svc(x_test, clf, class_names):
+def debug_calc_measure(x_test, ms, sko, covs, center, class_names):
     res = []
-    values = None
     for i, x in enumerate(x_test):
-        values = clf.predict(x_test)[0]
-        res.append(values)
+        values = np.array([
+            mahalanobis((x - ms[j]) / sko[j],
+                        center[j],
+                        np.linalg.inv(covs[j])) for j in class_names])
+        res.append(dict(zip(class_names, np.round(values, 5))))
+    return res
+
+
+def calc_measure_svc(x_test, clf):
+    res = []
+    for i, x in enumerate(x_test):
+        clf_res = clf.predict(x.reshape(1, -1))[0]
+        res.append(clf_res)
+        with open(f'document_id_results/file-result-{datetime.datetime.now().date()}.txt', 'a+') as handle:
+            handle.write(f'{datetime.datetime.now().time().strftime("%H-%M-%S")},{clf_res},{",".join(np.round(x, 6).astype(str))}\n')
     return most_common(res)
 
 
