@@ -2,7 +2,7 @@ import logging
 import os
 from collections import deque
 from enum import Enum
-from core.measurements import knn, calc_measure_svc, debug_calc_measure
+from core.measurements import knn, calc_measure_svc, debug_calc_measure, debug_calc_measure_svc
 from core.measurements import calc_measure, get_train_params
 import numpy as np
 from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
@@ -39,6 +39,7 @@ class PersonIdentification:
         self.__body_number = body_number
         self.__people_indexes = ['NoID'] * self.__body_number
         self.svm_classifier = None
+        self.one_class_classifier = None
 
     def database_connect(self):
         self.database = get_database(os.environ.get('database_path'))
@@ -46,8 +47,10 @@ class PersonIdentification:
         self.database = height_correction(self.database, DATABASE_HEIGHT)
         self.database = align_on_the_floor(self.database)
         self.database = skeleton_overlay(self.database)
-        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/file.pickle', 'rb') as handle:
+        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/svm-new.pickle', 'rb') as handle:
             self.svm_classifier = pickle.load(handle)
+        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/one-class-elliptic-c=0.13-sf=0.9.pickle', 'rb') as handle:
+            self.one_class_classifier = pickle.load(handle)
         self.reset_train_set()
 
     def reset_train_set(self):
@@ -77,6 +80,7 @@ class PersonIdentification:
             self.select_people_in_train_set(mon_people)
         ids = ['NoID'] * self.__body_number
         debug_ids = {}
+        debug_one_class = {}
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) > 10:
                 video = list(map(lambda x:
@@ -93,12 +97,13 @@ class PersonIdentification:
                 print(f'ID: {i}', flush=True)
                 ids[i] = (
                     f"{calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes), self.classes, measure='mahalanobis')}",
-                    f'{calc_measure_svc(test_x, self.svm_classifier)}'
+                    f'{calc_measure_svc(i, test_x, self.one_class_classifier, self.svm_classifier)}'
                 )
                 debug_ids[i] = debug_calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes), self.classes)
+                debug_one_class[i] = debug_calc_measure_svc(test_x, self.one_class_classifier)
                 # with open('just_file.txt', 'a+') as handle:
                 #     handle.write(f'ID_{i}: {ids[i]}: {test_x}\n')
-        return ids, debug_ids
+        return ids, debug_ids, debug_one_class
 
     def get_people(self):
         return np.unique(self.train_y)

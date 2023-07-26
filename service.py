@@ -133,8 +133,8 @@ class App(QWidget):
         if self.video_streaming_thread.queue.empty():
             self.video_streaming_thread.queue.put(image)
 
-    @pyqtSlot(dict)
-    def debug_get_grid(self, info: dict):
+    @pyqtSlot(dict, dict)
+    def debug_get_grid(self, info: dict, info_one_class: dict):
         if self.__people_list:
             people_number = len(self.__people_list)
             grid_info = np.asarray(self.__people_list).reshape(-1, 1)
@@ -151,6 +151,7 @@ class App(QWidget):
                 except IndexError:
                     logger.info('No more people')
             grid_info = np.vstack((header, grid_info))
+            grid_info = np.vstack((grid_info, np.asarray(['one-class'] + ['{:f}'.format(np.max(np.round(info_one_class[id][0][0], 7))) for id in indexes])))
             self.debug_set_grid_to_interface(grid_info)
 
     def debug_set_grid_to_interface(self, grid):

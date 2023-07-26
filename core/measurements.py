@@ -88,14 +88,25 @@ def debug_calc_measure(x_test, ms, sko, covs, center, class_names):
     return res
 
 
-def calc_measure_svc(x_test, clf):
+def calc_measure_svc(id, x_test, one_class_clf, svm_clf):
     res = []
     for i, x in enumerate(x_test):
-        clf_res = clf.predict(x.reshape(1, -1))[0]
-        res.append(clf_res)
         with open(f'document_id_results/file-result-{datetime.datetime.now().date()}.txt', 'a+') as handle:
-            handle.write(f'{datetime.datetime.now().time().strftime("%H-%M-%S")},{clf_res},{",".join(np.round(x, 6).astype(str))}\n')
+            handle.write(
+                f'{id}: {datetime.datetime.now().time().strftime("%H-%M-%S")},{svm_clf.predict(x.reshape(1, -1))[0]},{",".join(np.round(x, 6).astype(str))}\n'
+            )
+        if one_class_clf.predict(x.reshape(1, -1))[0] == 1:
+            clf_res = svm_clf.predict(x.reshape(1, -1))[0]
+            res.append(clf_res)
+
     return most_common(res)
+
+
+def debug_calc_measure_svc(x_test, one_class_clf):
+    debug_df = []
+    for i, x in enumerate(x_test):
+        debug_df.append(one_class_clf.decision_function(x.reshape(1, -1)))
+    return debug_df
 
 
 def most_common(lst):
