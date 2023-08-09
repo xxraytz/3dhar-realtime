@@ -135,7 +135,7 @@ class App(QWidget):
 
     @pyqtSlot(dict, dict)
     def debug_get_grid(self, info: dict, info_one_class: dict):
-        if self.__people_list:
+        if self.__people_list and info and info_one_class:
             people_number = len(self.__people_list)
             grid_info = np.asarray(self.__people_list).reshape(-1, 1)
             indexes = list(info.keys())
@@ -143,6 +143,8 @@ class App(QWidget):
             for i in indexes:
                 try:
                     clf_res = info[i]
+                    if not clf_res:
+                        continue
                     parts_number = len(clf_res)
                     values = np.asarray([res[name] for name in self.__people_list for res in clf_res])
                     values = values.reshape([people_number, parts_number])
@@ -150,8 +152,16 @@ class App(QWidget):
                     grid_info = np.hstack((grid_info, np.asarray(values).reshape(-1, 1)))
                 except IndexError:
                     logger.info('No more people')
+            print(grid_info, header, flush=True)
+            print(grid_info.shape, len(header), flush=True)
+            print(info_one_class, flush=True)
+            if grid_info.shape[1] != len(header):
+                return
             grid_info = np.vstack((header, grid_info))
-            grid_info = np.vstack((grid_info, np.asarray(['one-class'] + ['{:f}'.format(np.max(np.round(info_one_class[id][0][0], 7))) for id in indexes])))
+            try:
+                grid_info = np.vstack((grid_info, np.asarray(['one-class'] + ['{:f}'.format(np.max(np.round(info_one_class[id][0][0], 7))) for id in indexes])))
+            except NotImplementedError:
+                return
             self.debug_set_grid_to_interface(grid_info)
 
     def debug_set_grid_to_interface(self, grid):

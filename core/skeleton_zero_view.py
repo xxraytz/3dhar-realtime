@@ -89,7 +89,10 @@ def get_normal_vector_shoulder_head(s):
     j1, j2 = s[[16, 7], :]  # left
     v2 = j2 - j1
     try:
-        res = np.cross(v1, v2) / np.linalg.norm(np.cross(v1, v2))
+        a1 = np.cross(v1, v2)
+        a2 = np.linalg.norm(a1)
+        print(a1, a2, flush=True)
+        res = a1 / a2
     except ZeroDivisionError:
         res = np.ones(shape=(3,))
     return res
