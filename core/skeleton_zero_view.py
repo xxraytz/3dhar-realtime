@@ -88,7 +88,11 @@ def get_normal_vector_shoulder_head(s):
     v1 = j2 - j1
     j1, j2 = s[[16, 7], :]  # left
     v2 = j2 - j1
-    return np.cross(v1, v2) / np.linalg.norm(np.cross(v1, v2))
+    try:
+        res = np.cross(v1, v2) / np.linalg.norm(np.cross(v1, v2))
+    except ZeroDivisionError:
+        res = np.ones(shape=(3,))
+    return res
 
 
 def need_correction(v1, v2):
@@ -96,7 +100,11 @@ def need_correction(v1, v2):
     v1 = np.asarray([a, 0, c])
     a, b, c = v2
     v2 = np.asarray([a, 0, c])
-    return v1, v2, np.sign(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-10))
+    try:
+        v3 = np.sign(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-10))
+    except ZeroDivisionError:
+        v3 = np.ones(shape=(3,))
+    return v1, v2, v3
 
 
 def get_move_direction(s1, s2):
