@@ -344,7 +344,6 @@ class MainWindow(QMainWindow):
         self.update()
 
 
-
 if __name__ == '__main__':
     args = parse_arguments()
     app = QApplication(sys.argv)

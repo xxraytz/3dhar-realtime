@@ -198,7 +198,7 @@ class MainThread(QThread):
         # capture_picture()
 
         # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-
+        #
         with PyKinectRuntime.PyKinectRuntime(
                 PyKinectV2.FrameSourceTypes_Color
                 | PyKinectV2.FrameSourceTypes_Body
