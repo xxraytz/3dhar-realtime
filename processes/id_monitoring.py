@@ -36,8 +36,8 @@ class PersonIdentification:
         self.train_x = None
         self.train_y = None
         self.classes = None
-        self.__body_number = body_number
-        self.__people_indexes = ['NoID'] * self.__body_number
+        self.__body_count = body_number
+        self.__people_indexes = ['NoID'] * self.__body_count
         self.svm_classifier = None
         self.one_class_classifier = None
 
@@ -65,7 +65,7 @@ class PersonIdentification:
         self.classes = np.unique(self.train_y)
 
     def start_monitoring(self):
-        for i in range(0, self.__body_number):
+        for i in range(0, self.__body_count):
             self.skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
 
     def append_frame(self, frame):
@@ -78,7 +78,7 @@ class PersonIdentification:
         print("New identification")
         if not np.array_equal(mon_people, self.classes):
             self.select_people_in_train_set(mon_people)
-        ids = ['NoID'] * self.__body_number
+        ids = ['NoID'] * self.__body_count
         debug_ids = {}
         debug_one_class = {}
         for i, sk_ind in enumerate(self.skeletons):

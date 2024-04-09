@@ -197,13 +197,13 @@ class MainThread(QThread):
 
         # capture_picture()
 
-        # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        #
-        with PyKinectRuntime.PyKinectRuntime(
-                PyKinectV2.FrameSourceTypes_Color
-                | PyKinectV2.FrameSourceTypes_Body
-                | PyKinectV2.FrameSourceTypes_Depth) as kinect:
-            #
+        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+
+        # with PyKinectRuntime.PyKinectRuntime(
+        #         PyKinectV2.FrameSourceTypes_Color
+        #         | PyKinectV2.FrameSourceTypes_Body
+        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+
             kinect_device = KinectFrameReader(kinect)
             time.sleep(1)
 
@@ -223,8 +223,7 @@ class MainThread(QThread):
 
                             joints_color_space = kinect_device.get_color_space_joints(body_index, self.using_skeleton_joints.values())
 
-                            player_coordinates = [Joint(*j) for j in
-                                                  joints_skeleton_space]
+                            player_coordinates = [Joint(*j) for j in joints_skeleton_space]
 
                             player_screen_coordinates = [SJoints(*j) for j in joints_color_space]
 
