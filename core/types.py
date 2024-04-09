@@ -1,13 +1,6 @@
-import logging
 import math
-import time
 from typing import NamedTuple
-
-from multiprocessing import Queue, Process, Pipe, Event
-
 from pykinect2_emu.pykinect2_emu import KinectEmulator
-from processes.id_monitoring import MState
-from processes.fall_event import send_preprocessing, Call
 
 
 class SJoints(NamedTuple):
@@ -193,164 +186,57 @@ class KinectFrameReader:
             usable_joints.append(joints[j])
         return usable_joints
 
-
-class PersonIdentificationOld:
-    def __init__(self, id_delay, t_monitoring, bodies_count, conf):
-        self.__bodies_count = bodies_count
-        self.__conf = conf
-        self.__t = t_monitoring
-        self.__after_monitoring_delay = id_delay
-
-        self.__result_obtained_time = -1.
-        self.__start_time = 0.
-
-        self.__people_indexes = ['NoID'] * bodies_count
-        self.__parent_conn, self.__child_conn = Pipe()
-        self.__process_person_identification = None
-        self.__people_names = None
-
-        # Bool constant - conditions
-        self.__monitoring_completed = False
-        self.__result_waiting = False
-        self.__result_obtained = False
-        self.__monitoring_process = True
-
-        self.event = None
-
-    def is_monitoring_ready(self):
-        if self.is_monitoring_completed():
-            return time.time() - self.__result_obtained_time > self.__after_monitoring_delay
-        else:
-            return False
-
-    def is_monitoring(self):
-        return self.__monitoring_process
-
-    def is_monitoring_completed(self):
-        return self.__monitoring_completed
-
-    def is_monitoring_time_expired(self):
-        if time.time() - self.__start_time > self.__t:
-            return True
-        else:
-            return False
-
-    def is_result_waiting(self):
-        return self.__result_waiting
-
-    def is_result_obtained(self):
-        if self.__parent_conn.poll(timeout=0.01):
-            self.__result_waiting = False
-            self.__result_obtained = True
-        return self.__result_obtained
-
-    def append_frame(self, frame):
-        self.__parent_conn.send((MState.APPEND_MONITORING, frame))
-
-    def stop_monitoring(self):
-        self.__monitoring_process = False
-        self.__parent_conn.send(MState.GET_PERSON_ID)
-        self.__result_waiting = True
-        self.__people_indexes = ["Reloading..."] * self.__bodies_count
-
-    def start_monitoring(self):
-        self.__start_time = time.time()
-        self.__result_obtained_time = -1
-        self.__monitoring_process = True
-        self.__monitoring_completed = False
-        self.__result_waiting = False
-        self.__result_obtained = False
-        self.event = Event()
-
-        self.__process_person_identification = Process(target=identify, args=(self.__child_conn,
-                                                                              self.event))
-        self.__process_person_identification.start()
-
-        self.__parent_conn.send(MState.CHECK_STATUS)
-        self.__parent_conn.send((MState.INIT_MONITORING, self.__bodies_count))
-
-    def request_all_people_names(self):
-        self.__parent_conn.send((MState.GET_PEOPLE,))
-        self.event.wait()
-        if self.__parent_conn.poll(timeout=1):
-            self.__people_names = self.__parent_conn.recv()
-            return self.__people_names
-        else:
-            return None
-
-    def get_body_id(self, index):
-        return self.__people_indexes[index]
-
-    def get_all_people_names(self):
-        return self.__people_names
-
-    def get_people_ids(self):
-        people_ids = ['NoID'] * self.__bodies_count
-        ids = self.__parent_conn.recv()
-        for j, person_id in enumerate(ids):
-            people_ids[j] = person_id
-        self.__process_person_identification.join()
-        self.__process_person_identification.terminate()
-        self.__people_indexes = people_ids
-        self.__result_obtained_time = time.time()
-        self.__monitoring_completed = True
-        return people_ids
-
-    def exit(self):
-        self.__parent_conn.send(MState.END_MONITORING)
-        self.__process_person_identification.join()
-
-
-class VideoRecorder:
-    def __init__(self, conf):
-        self.__queue_video_recording = Queue()
-        self.__process_video_recording = Process(target=send_preprocessing, args=(self.__queue_video_recording, conf))
-
-    def start_recording(self):
-        self.__process_video_recording.start()
-
-    def open_recording_stream(self, store_dir, color_size):
-        self.__queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
-            store_dir,
-            color_size
-        ]))
-
-    def close_recording_stream(self):
-        self.__queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
-        self.__process_video_recording.join()
-
-
-class VideoStreaming:
-    def __init__(self, conf, paint):
-        self.__parent_conn, self.__child_conn = Pipe()
-        self.__process_video_streaming = Process(target=paint, args=(self.__child_conn,
-                                                                     conf))
-        self.started = False
-
-    def is_video_started(self):
-        return
-
-    def start_streaming(self):
-        self.__process_video_streaming.start()
-        self.started = True
-
-    def is_there_image_to_print(self):
-        return self.__parent_conn.poll(timeout=None)
-
-    def get_frame(self, emitter):
-        emitter(self.__parent_conn.recv())
-
-    def put_frame(self, frame):
-        self.__parent_conn.send(frame)
-
-    def is_streaming_stopped(self):
-        if self.started:
-            return self.__process_video_streaming.exitcode is not None
-        else:
-            return False
-
-    def clear_streaming(self):
-        self.__parent_conn.send(None)
-
-    def close_streaming(self):
-        self.__process_video_streaming.join()
+#
+# class VideoRecorder:
+#     def __init__(self, conf):
+#         self.__queue_video_recording = Queue()
+#         self.__process_video_recording = Process(target=send_preprocessing, args=(self.__queue_video_recording, conf))
+#
+#     def start_recording(self):
+#         self.__process_video_recording.start()
+#
+#     def open_recording_stream(self, store_dir, color_size):
+#         self.__queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
+#             store_dir,
+#             color_size
+#         ]))
+#
+#     def close_recording_stream(self):
+#         self.__queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
+#         self.__process_video_recording.join()
+#
+#
+# class VideoStreaming:
+#     def __init__(self, conf, paint):
+#         self.__parent_conn, self.__child_conn = Pipe()
+#         self.__process_video_streaming = Process(target=paint, args=(self.__child_conn,
+#                                                                      conf))
+#         self.started = False
+#
+#     def is_video_started(self):
+#         return
+#
+#     def start_streaming(self):
+#         self.__process_video_streaming.start()
+#         self.started = True
+#
+#     def is_there_image_to_print(self):
+#         return self.__parent_conn.poll(timeout=None)
+#
+#     def get_frame(self, emitter):
+#         emitter(self.__parent_conn.recv())
+#
+#     def put_frame(self, frame):
+#         self.__parent_conn.send(frame)
+#
+#     def is_streaming_stopped(self):
+#         if self.started:
+#             return self.__process_video_streaming.exitcode is not None
+#         else:
+#             return False
+#
+#     def clear_streaming(self):
+#         self.__parent_conn.send(None)
+#
+#     def close_streaming(self):
+#         self.__process_video_streaming.join()

@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 # from core import types
-from core.types import SkeletonFrame, VideoRecorder, VideoStreaming
+from core.types import SkeletonFrame
 from core.types import KinectFrame
 from core.types import KinectFrameReader
 from core.types import Joint, SJoints
