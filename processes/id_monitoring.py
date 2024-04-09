@@ -92,9 +92,9 @@ class PersonIdentification:
                 video = align_on_the_floor(video)
                 video = skeleton_overlay(video)
                 video = list(filter(lambda x: np.abs(x[4][0] - x[7][0]) > 0.130, video))
-                dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
+                dm = basic_assembly_metric(np.asarray([self.database[i] for i in [4, 10, 11, 15, 28]]), np.asarray(video))
                 test_x = div_profiles(dm)
-                print(f'ID: {i}', flush=True)
+                # print(f'ID: {i}', flush=True)
                 ids[i] = (
                     f"{calc_measure(test_x, *get_train_params(self.train_x, self.train_y, self.classes), self.classes, measure='mahalanobis')}",
                     f'{calc_measure_svc(i, test_x, self.one_class_classifier, self.svm_classifier)}'
