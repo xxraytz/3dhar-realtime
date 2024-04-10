@@ -118,6 +118,16 @@ class VideoStreamingThread(QThread):
     def pause(self):
         self._pause_flag = not self._pause_flag
 
+class HARThread(QThread):
+    def __init__(self):
+        super().__init__()
+        self._run_flag = True
+        self._pause_flag = False
+        self._q_skeletons = queue.Queue(maxsize=32)
+        self.__delay = 2 * 1e3  # sec
+        self._busy_flag = False
+        # self.__har =
+
 
 class PeopleMonitoringThread(QThread):
     send_calculated_indexes = pyqtSignal(list)
@@ -240,3 +250,4 @@ class MainThread(QThread):
 
     def pause(self):
         self._pause_flag = not self._pause_flag
+

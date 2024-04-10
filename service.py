@@ -1,7 +1,7 @@
 import argparse
 import json
 import logging
-from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread
+from core.allthreads import MainThread, VideoStreamingThread, PeopleMonitoringThread
 import cv2
 import numpy as np
 
