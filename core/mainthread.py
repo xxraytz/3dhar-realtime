@@ -118,7 +118,7 @@ class VideoStreamingThread(QThread):
     def pause(self):
         self._pause_flag = not self._pause_flag
 
-
+from processes.har import HAR
 class HARThread(QThread):
     # send_calculated_indexes = pyqtSignal(list)
     # send_debug_info = pyqtSignal(dict, dict)
@@ -131,12 +131,11 @@ class HARThread(QThread):
         self._q_skeletons = queue.Queue(maxsize=32)
         self.delay = 2 * 1e3  # sec
         self._busy_flag = False
-        # self.__har =
+        self.__har = HAR(body_number, dimension='3D')
 
+    #  Connect to dataset, basic assembly import, set nn
     def database_connect(self):
-        self.pid.database_connect()
-        self.__people = self.pid.get_people()
-        self.send_people_information.emit(self.__people)
+        self.__har.database_connect()
 
     def run(self):
         self.pid.start_monitoring()
@@ -169,6 +168,7 @@ class HARThread(QThread):
 
     def pause(self):
         self._pause_flag = not self._pause_flag
+
 
 class PeopleMonitoringThread(QThread):
     send_calculated_indexes = pyqtSignal(list)

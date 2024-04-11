@@ -1,8 +1,9 @@
 import logging
 from collections import deque
 import numpy as np
-
-
+from tools.skeleton_reader import SkeletonReader
+from tools.skeleton_corrector import SkeletonCorrector
+from os import environ
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -10,9 +11,9 @@ logger.setLevel(logging.INFO)
 
 class HAR:
 
-    def __init__(self, body_number, ba_path, order_path, dimension='3D', color_style='GRAY', ):
-        self.__ba_path = ba_path
-        self.__order_path = order_path
+    def __init__(self, body_number, dimension='3D', color_style='GRAY', ):
+        self.__ba_path = environ.get('ba_path')
+        self.__order_path = environ.get('order_path')
         self.__dim = dimension
         self.database = None
         self.classes = None
@@ -23,6 +24,7 @@ class HAR:
         self.skeletons = {}
 
     def database_connect(self):
+        logger.info('Database connection')
         self.__basic_assembly = self.__set_basic_assembly()
         self.__nn_model = self.__set_nn_model()
 
@@ -39,6 +41,11 @@ class HAR:
 
         return np.asarray([el[:, :-1] for el in SkeletonCorrector().transform(ba)] if self.__dim == '2D'
                           else SkeletonCorrector().transform(ba))
+
+    def __clean_basic_assembly(self, ba):
+        with open(self.__order_path, 'r+') as file:
+            ba = np.asarray(ba)[[int(el) for el in file.readline().split(',')]]
+        return [row for row in ba]
 
     def start_monitoring(self):
         for i in range(0, self.__body_count):
