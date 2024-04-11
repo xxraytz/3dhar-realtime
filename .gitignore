@@ -147,7 +147,7 @@ __pycache__
 recs/
 Scene*/
 media/
-
+data/
 # database
 *.sqlite3
 
