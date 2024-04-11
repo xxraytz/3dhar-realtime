@@ -119,6 +119,57 @@ class VideoStreamingThread(QThread):
         self._pause_flag = not self._pause_flag
 
 
+class HARThread(QThread):
+    # send_calculated_indexes = pyqtSignal(list)
+    # send_debug_info = pyqtSignal(dict, dict)
+    # send_people_information = pyqtSignal(list)
+
+    def __init__(self, config, body_number):
+        super().__init__()
+        self._run_flag = True
+        self._pause_flag = False
+        self._q_skeletons = queue.Queue(maxsize=32)
+        self.delay = 2 * 1e3  # sec
+        self._busy_flag = False
+        # self.__har =
+
+    def database_connect(self):
+        self.pid.database_connect()
+        self.__people = self.pid.get_people()
+        self.send_people_information.emit(self.__people)
+
+    def run(self):
+        self.pid.start_monitoring()
+        timer = QElapsedTimer()
+        timer.start()
+        while timer.elapsed() < self.__t:
+            frame = (self.queue.get()).skeleton_frames
+            if frame:
+                self.pid.append_frame(frame)
+        self._busy_flag = True
+        pids, debug_info, debug_one_class = self.pid.get_person_id(self.__people)
+        logger.info(pids)
+        self.send_calculated_indexes.emit(pids)
+        self.send_debug_info.emit(debug_info, debug_one_class)
+        self._busy_flag = False
+
+    def is_busy(self):
+        return self._busy_flag
+
+    def set_monitoring_people(self, people):
+        self.__people = people
+
+    def stop(self):
+        QTimer.singleShot(self.__delay, self.start)
+        self._run_flag = False
+        self.wait()
+
+    def get_all_people(self):
+        return self.pid.get_people()
+
+    def pause(self):
+        self._pause_flag = not self._pause_flag
+
 class PeopleMonitoringThread(QThread):
     send_calculated_indexes = pyqtSignal(list)
     send_debug_info = pyqtSignal(dict, dict)

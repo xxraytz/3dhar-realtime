@@ -1,31 +1,44 @@
 import logging
-import os
 from collections import deque
-from enum import Enum
-from core.measurements import knn, calc_measure_svc, debug_calc_measure, debug_calc_measure_svc
-from core.measurements import calc_measure, get_train_params
 import numpy as np
-from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
-from core.skeleton_zero_view import skeleton_correction
-import pickle
-from sklearn.metrics import pairwise_distances
+
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-DATABASE_HEIGHT = 1698
-VIDEO_HEIGHT = 1900
 
 class HAR:
 
-    def __init__(self, body_number):
-        self.skeletons = {}
+    def __init__(self, body_number, ba_path, order_path, dimension='3D', color_style='GRAY', ):
+        self.__ba_path = ba_path
+        self.__order_path = order_path
+        self.__dim = dimension
+        self.database = None
         self.classes = None
         self.__body_count = body_number
+        self.__basic_assembly = None
+        self.__nn_model = None
+        self.ready_to_reco = False
+        self.skeletons = {}
 
     def database_connect(self):
-        ...
+        self.__basic_assembly = self.__set_basic_assembly()
+        self.__nn_model = self.__set_nn_model()
+
+    def __set_nn_model(self):
+        return None
+
+    def __set_basic_assembly(self):
+        ba = SkeletonReader(self.__ba_path, 'TST', dim='3D').read_skeletons(basic_assembly_reading=True)
+
+        if self.__order_path:
+            ba = self.__clean_basic_assembly(ba)
+
+        ba = [el[:, :-1] for el in ba]
+
+        return np.asarray([el[:, :-1] for el in SkeletonCorrector().transform(ba)] if self.__dim == '2D'
+                          else SkeletonCorrector().transform(ba))
 
     def start_monitoring(self):
         for i in range(0, self.__body_count):
