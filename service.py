@@ -1,7 +1,7 @@
 import argparse
 import json
 import logging
-from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread
+from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread, HARThread
 import cv2
 import numpy as np
 
@@ -87,6 +87,7 @@ class App(QWidget):
         self.main_thread = MainThread(self.conf)
         self.video_streaming_thread = VideoStreamingThread(self.conf)
         self.people_monitoring_thread = PeopleMonitoringThread(self.conf, 6)
+        self.human_action_recognition_thread = HARThread(self.conf, 6)
 
         self.video_streaming_thread.video_frame_sending.connect(self.update_image)
         self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
@@ -94,6 +95,7 @@ class App(QWidget):
         self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
         self.main_thread.video_frame_generate.connect(self.video_streaming_append)
         self.main_thread.video_frame_generate.connect(self.monitoring_append)
+        self.human_action_recognition_thread.send_action_info.connect(self.set_people_actions)
         # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
 
     @staticmethod
@@ -114,6 +116,8 @@ class App(QWidget):
         self.video_streaming_thread.start()
         self.people_monitoring_thread.database_connect()
         self.people_monitoring_thread.start()
+        self.human_action_recognition_thread.database_connect()
+        self.human_action_recognition_thread.start()
 
     @pyqtSlot(list)
     def set_monitoring_people_list(self, people):
@@ -127,6 +131,8 @@ class App(QWidget):
     def monitoring_append(self, image):
         if not self.people_monitoring_thread.is_busy():
             self.people_monitoring_thread.queue.put(image)
+        if not self.human_action_recognition_thread.is_busy():
+            self.human_action_recognition_thread.q_skeletons.put(image)
 
     @pyqtSlot(object)
     def video_streaming_append(self, image):
@@ -178,6 +184,10 @@ class App(QWidget):
         self.main_layout.update()
         self.update()
 
+    @pyqtSlot(list)
+    def set_people_actions(self, classes):
+        logger.info(classes)
+        self.human_action_recognition_thread.stop()
 
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):
@@ -185,6 +195,7 @@ class App(QWidget):
         self.show_label()
         self.video_streaming_thread.set_indexes([f'{x}' for x in people_ids])
         self.people_monitoring_thread.stop()
+        self.human_action_recognition_thread.stop()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.main_thread.stop()

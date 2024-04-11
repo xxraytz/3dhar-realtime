@@ -4,6 +4,8 @@ import numpy as np
 from tools.skeleton_reader import SkeletonReader
 from tools.skeleton_corrector import SkeletonCorrector
 from os import environ
+from tools.nn_model import Recognizer
+
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -26,10 +28,10 @@ class HAR:
     def database_connect(self):
         logger.info('Database connection')
         self.__basic_assembly = self.__set_basic_assembly()
-        self.__nn_model = self.__set_nn_model()
+        self.recognizer = self.__set_nn_model()
 
     def __set_nn_model(self):
-        return None
+        self.recognizer = Recognizer()
 
     def __set_basic_assembly(self):
         ba = SkeletonReader(self.__ba_path, 'TST', dim='3D').read_skeletons(basic_assembly_reading=True)
@@ -49,12 +51,12 @@ class HAR:
 
     def start_monitoring(self):
         for i in range(0, self.__body_count):
-            self.skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
+            self.skeletons[f'skeleton_{i:03d}'] = deque(maxlen=32)
 
     def append_frame(self, frame):
         for i, sk_ind in enumerate(frame):
             if sk_ind is not None:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
-    def get_person_id(self, mon_people=None):
-        ...
+    def get_person_class(self):
+        return ['no', 'no', 'no', 'no', 'no', 'no']

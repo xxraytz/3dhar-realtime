@@ -70,10 +70,10 @@ def calc_measure(x_test, ms, sko, covs, center, class_names, measure='euclidean'
                 euclidean((x - ms[j]) / sko[j], center[j]) for j in class_names
             ])
         res = summary_result(list(zip(class_names, values)), res)
-        print(f'Part {i}:')
-        print("\n".join([f"{x}" for x in list(zip(class_names, values))]), flush=True)
-        print(res, flush=True)
-    print()
+        # print(f'Part {i}:')
+        # print("\n".join([f"{x}" for x in list(zip(class_names, values))]), flush=True)
+        # print(res, flush=True)
+    # print()
     return most_common(res)
 
 

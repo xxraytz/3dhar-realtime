@@ -22,6 +22,7 @@ from core.types import KinectFrameReader
 from core.types import Joint, SJoints
 from processes.paint import paint, VideoMode
 from processes.id_monitoring import PersonIdentification
+from processes.har import HAR
 
 from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal, QElapsedTimer, QTimer
 
@@ -118,18 +119,17 @@ class VideoStreamingThread(QThread):
     def pause(self):
         self._pause_flag = not self._pause_flag
 
-from processes.har import HAR
+
 class HARThread(QThread):
-    # send_calculated_indexes = pyqtSignal(list)
-    # send_debug_info = pyqtSignal(dict, dict)
-    # send_people_information = pyqtSignal(list)
+    send_action_info = pyqtSignal(list)
 
     def __init__(self, config, body_number):
         super().__init__()
         self._run_flag = True
         self._pause_flag = False
-        self._q_skeletons = queue.Queue(maxsize=32)
-        self.delay = 2 * 1e3  # sec
+        self.__am_size = 32
+        self.q_skeletons = queue.Queue(maxsize=500)
+        self.__delay = 2 * 1e3  # sec
         self._busy_flag = False
         self.__har = HAR(body_number, dimension='3D')
 
@@ -138,18 +138,20 @@ class HARThread(QThread):
         self.__har.database_connect()
 
     def run(self):
-        self.pid.start_monitoring()
-        timer = QElapsedTimer()
-        timer.start()
-        while timer.elapsed() < self.__t:
-            frame = (self.queue.get()).skeleton_frames
+        self.__har.start_monitoring()
+
+        counter = 0
+        while True:
+            frame = (self.q_skeletons.get()).skeleton_frames
             if frame:
-                self.pid.append_frame(frame)
+                self.__har.append_frame(frame)
+            counter += 1
+            if counter > self.__am_size:
+                break
         self._busy_flag = True
-        pids, debug_info, debug_one_class = self.pid.get_person_id(self.__people)
-        logger.info(pids)
-        self.send_calculated_indexes.emit(pids)
-        self.send_debug_info.emit(debug_info, debug_one_class)
+        classes = self.__har.get_person_class()
+        logger.info(classes)
+        self.send_action_info.emit(classes)
         self._busy_flag = False
 
     def is_busy(self):
@@ -162,9 +164,6 @@ class HARThread(QThread):
         QTimer.singleShot(self.__delay, self.start)
         self._run_flag = False
         self.wait()
-
-    def get_all_people(self):
-        return self.pid.get_people()
 
     def pause(self):
         self._pause_flag = not self._pause_flag
