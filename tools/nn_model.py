@@ -24,6 +24,6 @@ class Recognizer:
         )
         logger.info('The model is set up')
 
-    def recognize(self):
-        ...
+    def predict_actions(self, activity_map):
+        return self.__nn_model.predict(activity_map, verbose=0)
 

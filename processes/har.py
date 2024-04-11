@@ -18,7 +18,8 @@ class HAR:
         self.__order_path = environ.get('order_path')
         self.__dim = dimension
         self.database = None
-        self.classes = None
+        self.classes = ['standing', 'walking', 'sitting', 'falling', 'grasp', 'ungrasp',
+                        'laying', 'post-fall-laying', 'no_class']
         self.__body_count = body_number
         self.__basic_assembly = None
         self.__nn_model = None
@@ -28,7 +29,7 @@ class HAR:
     def database_connect(self):
         logger.info('Database connection')
         self.__basic_assembly = self.__set_basic_assembly()
-        self.recognizer = self.__set_nn_model()
+        self.__set_nn_model()
 
     def __set_nn_model(self):
         self.recognizer = Recognizer()
@@ -59,4 +60,22 @@ class HAR:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
     def get_person_class(self):
+        logger.info(len(self.skeletons))
+        logger.info(self.skeletons)
+        for i, sk_ind in enumerate(self.skeletons):
+            if len(self.skeletons[sk_ind]) == 32:
+                video = list(map(lambda x:
+                                 np.asarray(list(map(lambda y: y.tolist(), x.player_coordinates))),
+                                 self.skeletons[sk_ind]))
+                video = [el[:, :-1] for el in video]
+                video = np.asarray(SkeletonCorrector(self.__dim).transform(video))
+                dm = self.__dm_calculating(video)
+                logger.info(dm[None, :].shape)
+                result = self.recognizer.predict_actions(dm[None, :])
+                print(self.classes[np.argmax(result)])
         return ['no', 'no', 'no', 'no', 'no', 'no']
+
+    def __dm_calculating(self, video):
+        gray_max = 0.86
+        distance_matrix = np.mean(np.linalg.norm(self.__basic_assembly[:, None] - video[None, :], axis=-1), axis=-1)
+        return distance_matrix / gray_max

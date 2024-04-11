@@ -128,7 +128,7 @@ class HARThread(QThread):
         self._run_flag = True
         self._pause_flag = False
         self.__am_size = 32
-        self.q_skeletons = queue.Queue(maxsize=500)
+        self.q_skeletons = queue.Queue()  # We need clean queue sometimes
         self.__delay = 2 * 1e3  # sec
         self._busy_flag = False
         self.__har = HAR(body_number, dimension='3D')
