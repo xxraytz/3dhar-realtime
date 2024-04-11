@@ -19,6 +19,7 @@ django-filter = "*"
 scipy = "*"
 pyqt6 = "*"
 scikit-learn = "*"
+keras = "*"
 
 [dev-packages]
 
