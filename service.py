@@ -96,7 +96,7 @@ class App(QWidget):
         self.main_thread.video_frame_generate.connect(self.video_streaming_append)
         self.main_thread.video_frame_generate.connect(self.human_action_recognition)
         self.main_thread.video_frame_generate.connect(self.monitoring_append)
-        self.human_action_recognition_thread.send_action_info.connect(self.set_people_actions)
+        # self.human_action_recognition_thread.send_action_info.connect(self.set_people_actions)
         # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
 
     @staticmethod
@@ -117,8 +117,8 @@ class App(QWidget):
         self.video_streaming_thread.start()
         self.people_monitoring_thread.database_connect()
         self.people_monitoring_thread.start()
-        self.human_action_recognition_thread.database_connect()
-        self.human_action_recognition_thread.start()
+        # self.human_action_recognition_thread.database_connect()
+        # self.human_action_recognition_thread.start()
 
     @pyqtSlot(list)
     def set_monitoring_people_list(self, people):
@@ -130,8 +130,8 @@ class App(QWidget):
 
     @pyqtSlot(object)
     def human_action_recognition(self, image):
-        if not self.human_action_recognition_thread.is_busy():
-            self.human_action_recognition_thread.q_skeletons.put(image)
+        # if not self.human_action_recognition_thread.is_busy():
+        #     self.human_action_recognition_thread.q_skeletons.put(image)
         ...
 
     @pyqtSlot(object)
@@ -191,9 +191,10 @@ class App(QWidget):
 
     @pyqtSlot(list)
     def set_people_actions(self, classes):
-        logger.info(classes)
-        self.human_action_recognition_thread.stop()
-        # ...
+        # logger.info(classes)
+        # self.video_streaming_thread.set_classes(classes)
+        # self.human_action_recognition_thread.stop()
+        ...
 
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):

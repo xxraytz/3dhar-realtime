@@ -93,12 +93,13 @@ class VideoStreamingThread(QThread):
         self.__video_mode = VideoMode.SKELETAL
         self.conf = config
         self.__indexes = ['NoID'] * 6
+        self.__classes = ['no_action'] * 6
 
     def run(self):
         while True:
             frame = self.queue.get()
             if frame:
-                image = paint(frame, self.conf, self.__video_mode, self.__indexes)
+                image = paint(frame, self.conf, self.__video_mode, self.__indexes, self.__classes)
                 self.video_frame_sending.emit(image)
             else:
                 continue
@@ -116,6 +117,8 @@ class VideoStreamingThread(QThread):
     def set_indexes(self, inds):
         self.__indexes = inds
 
+    def set_classes(self, classes):
+        self.__classes = classes
     def pause(self):
         self._pause_flag = not self._pause_flag
 
@@ -247,12 +250,12 @@ class MainThread(QThread):
 
         # capture_picture()
 
-        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-
-        # with PyKinectRuntime.PyKinectRuntime(
-        #         PyKinectV2.FrameSourceTypes_Color
-        #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+        #
+        with PyKinectRuntime.PyKinectRuntime(
+                PyKinectV2.FrameSourceTypes_Color
+                | PyKinectV2.FrameSourceTypes_Body
+                | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
             kinect_device = KinectFrameReader(kinect)
             time.sleep(1)

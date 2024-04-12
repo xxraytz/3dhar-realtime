@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "3446fe174c977b0358e6e1f575dba77a8853182c74847ea0bb45b3f7053027d6"
+            "sha256": "327b266b4b8227d6ee5c7bf6c81b9845382a9abfc93fa3e57e1480661ec3411e"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -597,6 +597,7 @@
             "version": "==2.8.0"
         },
         "pykinect2": {
+            "editable": true,
             "git": "https://github.com/xxraytz/PyKinect2.git",
             "ref": "c20559b67646c4d19b9bce0d5227f888a1512151"
         },

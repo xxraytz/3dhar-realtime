@@ -19,7 +19,7 @@ class HAR:
         self.__dim = dimension
         self.database = None
         self.classes = ['standing', 'walking', 'sitting', 'falling', 'grasp', 'ungrasp',
-                        'laying', 'post-fall-laying', 'no_class']
+                        'laying', 'post-fall-laying', 'no_action']
         self.__body_count = body_number
         self.__basic_assembly = None
         self.__nn_model = None
@@ -60,8 +60,7 @@ class HAR:
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
 
     def get_person_class(self):
-        logger.info(len(self.skeletons))
-        logger.info(self.skeletons)
+        classes = ['no_action'] * 6
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) == 32:
                 video = list(map(lambda x:
@@ -73,7 +72,9 @@ class HAR:
                 logger.info(dm[None, :].shape)
                 result = self.recognizer.predict_actions(dm[None, :])
                 print(self.classes[np.argmax(result)])
-        return ['no', 'no', 'no', 'no', 'no', 'no']
+                print(type(self.classes[np.argmax(result)]))
+                classes[i] = self.classes[np.argmax(result)]
+        return classes
 
     def __dm_calculating(self, video):
         gray_max = 0.86

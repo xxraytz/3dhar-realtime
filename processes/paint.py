@@ -19,7 +19,7 @@ class VideoMode(Enum):
         return [self.REAL.value, self.SKELETAL.value]
 
 
-def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes):
+def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes, classes):
     skeletons = frame.skeleton_frames
     if video_mode is VideoMode.REAL:
         color_image = frame.color_frame
@@ -39,6 +39,8 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
             if sk is not None:
                 screen_coordinates = sk.player_screen_coordinates
                 person_id = indexes[i]
+                person_class = classes[i]
+                class_rgb = (32, 198, 32)
                 if person_id == 'NoID':
                     id_rgb = (237, 72, 48)
                 elif person_id == 'RELOADING...':
@@ -55,18 +57,25 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
                         if joint != SJoints(0, 0):
                             cv2.circle(color_image, joint, 15, color=(255, 220, 190), thickness=-1)
                             cv2.circle(color_image, joint, 10, color=(255, 190, 140), thickness=-1)
+                    cv2.rectangle(color_image, (sk.player_screen_coordinates[3][0] + 20, sk.player_screen_coordinates[3][1] - 50),
+                                  (sk.player_screen_coordinates[3][0] + 20 + 300, sk.player_screen_coordinates[3][1] + 5 + 45), (255, 255, 255), -1)
                     cv2.putText(color_image, f"{i}. {person_id}",
-                                (sk.player_screen_coordinates[3][0] + 20, sk.player_screen_coordinates[3][1] + 5),
+                                (sk.player_screen_coordinates[3][0] + 20, sk.player_screen_coordinates[3][1] - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX,
                                 1, id_rgb, 2, 2)
+
+                    cv2.putText(color_image, f"{i}. {person_class}",
+                                (sk.player_screen_coordinates[3][0] + 20, sk.player_screen_coordinates[3][1] + 35),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1, class_rgb, 2, 2)
     return color_image
 
 
-def paint(frame, config, video_mode, indexes):
+def paint(frame, config, video_mode, indexes, classes):
     saved_color_image = cv2.imread('_color_image.png')
     with open(config, 'r') as stream:
         config = json.load(stream)
         skeleton_lines = config["SKELETON_LINES"]
-    color_image = generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes)
+    color_image = generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes, classes)
     color_image = cv2.resize(color_image, (1920, 1080))
     return color_image
