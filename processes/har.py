@@ -69,13 +69,17 @@ class HAR:
                 video = [el[:, :-1] for el in video]
                 video = np.asarray(SkeletonCorrector(self.__dim).transform(video))
                 dm = self.__dm_calculating(video)
-                result = self.recognizer.predict_actions(dm[None, :])
-                logger.info(print(dm.shape))
-                classes[i] = self.classes[np.argmax(result)] if result is not None else 'no_action'
+                if dm is None:
+                    classes[i] = 'no_action'
+                else:
+                    result = self.recognizer.predict_actions(dm[None, :])
+                    classes[i] = self.classes[np.argmax(result)] if result is not None else 'no_action'
         return classes
 
     def __dm_calculating(self, video):
         gray_max = 0.86
         #  Here is a mistake. You should define video size
+        if video.shape[0] < 32:
+            return None
         distance_matrix = np.mean(np.linalg.norm(self.__basic_assembly[:, None] - video[None, :], axis=-1), axis=-1)
         return distance_matrix / gray_max
