@@ -4,9 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-numpy = "==1.18.1"
+numpy = "==1.23.4"
 comtypes = "==1.1.11"
-pykinect2 = {editable = true, git = "https://github.com/xxraytz/PyKinect2.git"}
+pykinect2 = {git = "https://github.com/xxraytz/PyKinect2.git"}
 opencv-python = "*"
 requests = "*"
 backoff = "*"
@@ -21,8 +21,6 @@ pyqt6 = "*"
 scikit-learn = "*"
 tensorflow = "*"
 keras = "*"
-
-
 
 [dev-packages]
 

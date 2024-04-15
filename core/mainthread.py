@@ -153,7 +153,6 @@ class HARThread(QThread):
                 break
         self._busy_flag = True
         classes = self.__har.get_person_class()
-        logger.info(classes)
         self.send_action_info.emit(classes)
         self._busy_flag = False
 
@@ -164,7 +163,12 @@ class HARThread(QThread):
         self.__people = people
 
     def stop(self):
+        # with self.q_skeletons.mutex:
+        #     self.q_skeletons.queue.clean()
+        while not self.q_skeletons.empty():
+            _ = self.q_skeletons.get()
         QTimer.singleShot(self.__delay, self.start)
+
         self._run_flag = False
         self.wait()
 
@@ -203,7 +207,6 @@ class PeopleMonitoringThread(QThread):
                 self.pid.append_frame(frame)
         self._busy_flag = True
         pids, debug_info, debug_one_class = self.pid.get_person_id(self.__people)
-        logger.info(pids)
         self.send_calculated_indexes.emit(pids)
         self.send_debug_info.emit(debug_info, debug_one_class)
         self._busy_flag = False
@@ -251,7 +254,7 @@ class MainThread(QThread):
         # capture_picture()
 
         # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        #
+
         with PyKinectRuntime.PyKinectRuntime(
                 PyKinectV2.FrameSourceTypes_Color
                 | PyKinectV2.FrameSourceTypes_Body

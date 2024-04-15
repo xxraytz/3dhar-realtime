@@ -25,5 +25,5 @@ class Recognizer:
         logger.info('The model is set up')
 
     def predict_actions(self, activity_map):
-        return self.__nn_model.predict(activity_map, verbose=0)
+        return self.__nn_model.predict(activity_map, verbose=0) if activity_map.shape == (1, 32, 32) else None
 
