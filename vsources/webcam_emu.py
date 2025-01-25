@@ -1,6 +1,7 @@
 import cv2 as cv2
 import mediapipe as mp
 import numpy as np
+from tools.GoogleSkeletonUnification import convert_to_kinect_coords
 
 """Camera Streamer"""
 
@@ -67,6 +68,8 @@ class CameraStreamer:
         self.__pose_estimator = self.__set_pose_estimator()
         self.__current_color_frame = None
 
+        self.__unify = convert_to_kinect_coords
+
     def __set_pose_estimator(self):
         if self.estimator_name == 'Mediapipe':
             mp_pose = mp.solutions.pose
@@ -81,11 +84,21 @@ class CameraStreamer:
         """
         while True:
             frame_skeleton = self.__pose_estimator(self.__current_color_frame)
+            if frame_skeleton.pose_landmarks is None:
+                yield None
+            else:
+                frame_skeleton = self.__unify(frame_skeleton.pose_landmarks.landmark)
 
+            skeleton = []
+            for sk in frame_skeleton:
+                skeleton.append(Joint(*sk, 2))
+
+            for i in self.__exceed_points:
+                skeleton.insert(i, Joint(0, 0, 0, 0))
             yield [
-                Body(frame_skeleton, True)
+                Body(skeleton, True)
             ] + [
-                Body(frame_skeleton, False)
+                Body(skeleton, False)
             ] * (self.max_body_count - 1)
 
     def __body_color_frames_generator(self):
@@ -96,11 +109,20 @@ class CameraStreamer:
         """
         while True:
             frame_skeleton = self.__pose_estimator(self.__current_color_frame)
+            if frame_skeleton.pose_landmarks is None:
+                yield None
+            else:
+                frame_skeleton = self.__unify(frame_skeleton.pose_landmarks.landmark)
+            skeleton = []
+            for sk in frame_skeleton:
+                skeleton.append(ScreenJoint(*(sk[:2]), 2))
 
+            for i in self.__exceed_points:
+                skeleton.insert(i, ScreenJoint(0, 0))
             yield [
-                Body(frame_skeleton, True)
+                Body(skeleton, True)
             ] + [
-                Body(frame_skeleton, False)
+                Body(skeleton, False)
             ] * (self.max_body_count - 1)
 
     def __color_frames_generator(self):
@@ -146,12 +168,10 @@ class CameraStreamer:
         Функция заглушка. Делает вид, что переводит координаты из пространства в пространства.
         На самом деле просто возвращает результат другого генератора - чет типо того.
         """
-        index = None
-        color_frames = next(self.__body_color_frames_generator())
-        for i, jnts in enumerate(next(self.__body_frames_generator())):
-            if [joints[j].__str__() == jnts.joints[j].__str__() for j in range(len(joints))] == [True] * len(joints):
-                index = i
-        return color_frames[index]
+        skeleton = []
+        for joint in joints:
+            skeleton.append(ScreenJoint(joint.Position.x * 1e6, joint.Position.y * 1e6))
+        return skeleton
 
     def __enter__(self):
         return self

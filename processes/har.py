@@ -33,8 +33,8 @@ class HAR:
         self.__set_nn_model()
 
     def __set_nn_model(self):
-        self.fall_recognizer = Recognizer(environ.get('nn_model_path'))
-        self.act_recognizer = Recognizer(environ.get('nn_model_fall_check_path'))
+        self.fall_recognizer = Recognizer(environ.get('nn_model_fall_check_path'))
+        self.act_recognizer = Recognizer(environ.get('nn_model_path'))
 
     def __set_basic_assembly(self):
         ba = SkeletonReader(self.__ba_path, 'TST', dim='3D').read_skeletons(basic_assembly_reading=True)

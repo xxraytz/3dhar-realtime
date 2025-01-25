@@ -147,6 +147,8 @@ class KinectFrameReader:
         return self.bodies[index]
 
     def is_body_tracked(self, index):
+        if self.bodies is None:
+            return False
         if self.bodies[index].is_tracked:
             self.__has_body_tracked = True
             return True

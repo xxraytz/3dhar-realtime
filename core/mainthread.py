@@ -261,7 +261,7 @@ class MainThread(QThread):
         # with PyKinectRuntime.PyKinectRuntime(
         #         PyKinectV2.FrameSourceTypes_Color
         #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        #         | PyKinectV2.FrameSourceTypes_Depth) as camera:
 
             kinect_device = KinectFrameReader(camera)
             time.sleep(1)
