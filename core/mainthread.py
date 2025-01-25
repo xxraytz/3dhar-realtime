@@ -8,6 +8,7 @@ import time
 from enum import Enum
 
 from pykinect2_emu.pykinect2_emu import KinectEmulator
+from webcam_emu.webcam_emu import WebcamEmulator
 
 import comtypes
 from pykinect2 import PyKinectV2, PyKinectRuntime
@@ -253,12 +254,14 @@ class MainThread(QThread):
 
         # capture_picture()
 
-        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        #
-        # with PyKinectRuntime.PyKinectRuntime(
-        #         PyKinectV2.FrameSourceTypes_Color
-        #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        # with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
+
+        # with WebcamEmulator() as webcam:
+
+        with PyKinectRuntime.PyKinectRuntime(
+                PyKinectV2.FrameSourceTypes_Color
+                | PyKinectV2.FrameSourceTypes_Body
+                | PyKinectV2.FrameSourceTypes_Depth) as kinect:
 
             kinect_device = KinectFrameReader(kinect)
             time.sleep(1)

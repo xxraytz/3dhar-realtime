@@ -9,12 +9,13 @@ logger.setLevel(logging.INFO)
 
 
 class Recognizer:
-    def __init__(self, ):
-        self.__set_model(environ.get('nn_model_path'))
+    def __init__(self, path_to):
+        self.__set_model(path_to)
 
     def __set_model(self, path_to):
         logger.info('Trying set the keras model...')
-        self.__nn_model: keras.Model = tf.keras.models.load_model(path_to)
+        self.__nn_model: keras.Model = tf.keras.models.load_model(path_to, compile=False)
+        #self.__nn_model_check_fall: keras.Model = tf.keras.models.load_model(path_to)
 
         adam = tf.keras.optimizers.Adam(learning_rate=0.001)
         self.__nn_model.compile(
@@ -22,8 +23,8 @@ class Recognizer:
             loss=keras.losses.CategoricalCrossentropy(),
             metrics=['accuracy']
         )
+
         logger.info('The model is set up')
 
     def predict_actions(self, activity_map):
         return self.__nn_model.predict(activity_map, verbose=0) if activity_map.shape == (1, 32, 32) else None
-

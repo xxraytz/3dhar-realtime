@@ -18,8 +18,9 @@ class HAR:
         self.__order_path = environ.get('order_path')
         self.__dim = dimension
         self.database = None
-        self.classes = ['standing', 'walking', 'sitting', 'falling', 'grasp', 'ungrasp',
-                        'laying', 'post-fall-laying', 'no_action']
+        self.act_classes = ['standing', 'walking', 'sitting', 'falling', 'grasp', 'ungrasp',
+                         'laying', 'post-fall-laying', 'no_action']
+        self.fall_classes = ['FALL', 'ADL']
         self.__body_count = body_number
         self.__basic_assembly = None
         self.__nn_model = None
@@ -32,7 +33,8 @@ class HAR:
         self.__set_nn_model()
 
     def __set_nn_model(self):
-        self.recognizer = Recognizer()
+        self.fall_recognizer = Recognizer(environ.get('nn_model_path'))
+        self.act_recognizer = Recognizer(environ.get('nn_model_fall_check_path'))
 
     def __set_basic_assembly(self):
         ba = SkeletonReader(self.__ba_path, 'TST', dim='3D').read_skeletons(basic_assembly_reading=True)
@@ -61,6 +63,7 @@ class HAR:
 
     def get_person_class(self):
         classes = ['no_action'] * 6
+        classes_fall_action = ['no_action'] * 6
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) == 32:
                 video = list(map(lambda x:
@@ -72,8 +75,12 @@ class HAR:
                 if dm is None:
                     classes[i] = 'no_action'
                 else:
-                    result = self.recognizer.predict_actions(dm[None, :])
-                    classes[i] = self.classes[np.argmax(result)] if result is not None else 'no_action'
+                    result_fall = self.fall_recognizer.predict_actions(dm[None, :])
+                    result_act = self.act_recognizer.predict_actions(dm[None, :])
+                    classes[i] = self.fall_classes[np.argmax(result_fall)] if result_fall is not None else 'no_action'
+                    if (classes[i] == 'FALL' and self.act_classes[np.argmax(result_act)] != 'falling'):
+                        classes[i] = 'test'
+
         return classes
 
     def __dm_calculating(self, video):

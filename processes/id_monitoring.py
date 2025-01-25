@@ -47,9 +47,9 @@ class PersonIdentification:
         self.database = height_correction(self.database, DATABASE_HEIGHT)
         self.database = align_on_the_floor(self.database)
         self.database = skeleton_overlay(self.database)
-        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/svm-new.pickle', 'rb') as handle:
+        with open('C:/Users/Egor/workspace/projects/python/har/person-skeleton-id/data/svm-new.pickle', 'rb') as handle:
             self.svm_classifier = pickle.load(handle)
-        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/one-class-elliptic-c=0.13-sf=0.9.pickle', 'rb') as handle:
+        with open('C:/Users/Egor/workspace/projects/python/har/person-skeleton-id/data/one-class-elliptic-c=0.13-sf=0.9.pickle', 'rb') as handle:
             self.one_class_classifier = pickle.load(handle)
         self.reset_train_set()
 
@@ -91,6 +91,8 @@ class PersonIdentification:
                 video = align_on_the_floor(video)
                 video = skeleton_overlay(video)
                 video = list(filter(lambda x: np.abs(x[4][0] - x[7][0]) > 0.130, video))
+                if len(video) < 5:
+                    continue
                 dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
                 test_x = div_profiles(dm)
                 # print(f'ID: {i}', flush=True)
