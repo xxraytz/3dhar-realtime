@@ -21,6 +21,7 @@ pyqt6 = "*"
 scikit-learn = "*"
 tensorflow = "*"
 keras = "*"
+mediapipe = "*"
 
 [dev-packages]
 

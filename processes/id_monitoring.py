@@ -47,9 +47,9 @@ class PersonIdentification:
         self.database = height_correction(self.database, DATABASE_HEIGHT)
         self.database = align_on_the_floor(self.database)
         self.database = skeleton_overlay(self.database)
-        with open('C:/Users/Egor/workspace/projects/python/har/person-skeleton-id/data/svm-new.pickle', 'rb') as handle:
+        with open('data/svm-new.pickle', 'rb') as handle:
             self.svm_classifier = pickle.load(handle)
-        with open('C:/Users/Egor/workspace/projects/python/har/person-skeleton-id/data/one-class-elliptic-c=0.13-sf=0.9.pickle', 'rb') as handle:
+        with open('data/one-class-elliptic-c=0.13-sf=0.9.pickle', 'rb') as handle:
             self.one_class_classifier = pickle.load(handle)
         self.reset_train_set()
 

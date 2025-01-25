@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 from multiprocessing import Queue, Process, Pipe, Event
 
-from pykinect2_emu.pykinect2_emu import KinectEmulator
+from vsources.pykinect2_emu import KinectEmulator
 from processes.id_monitoring import MState
 from processes.fall_event import send_preprocessing, Call
 

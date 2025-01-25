@@ -19,7 +19,7 @@ class HAR:
         self.__dim = dimension
         self.database = None
         self.act_classes = ['standing', 'walking', 'sitting', 'falling', 'grasp', 'ungrasp',
-                         'laying', 'post-fall-laying', 'no_action']
+                            'laying', 'post-fall-laying', 'no_action']
         self.fall_classes = ['FALL', 'ADL']
         self.__body_count = body_number
         self.__basic_assembly = None

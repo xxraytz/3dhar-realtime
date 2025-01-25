@@ -3,7 +3,6 @@ import os
 import cv2 as cv2
 import numpy as np
 
-
 """ Kinect v2 emulator"""
 
 
@@ -50,7 +49,6 @@ class Body:
 
 
 class KinectEmulator:
-
     KINECT_COLOR_WIDTH = 1920
     KINECT_COLOR_HEIGHT = 1080
 
