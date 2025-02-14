@@ -1,7 +1,7 @@
 import mediapipe as mp
 import numpy as np
 
-def convert_to_kinect_coords(mp_landmarks):
+def convert_to_kinect_coords(mp_landmarks, reflect_axis_Y):
     if mp_landmarks is None:
         return
 
@@ -20,10 +20,12 @@ def convert_to_kinect_coords(mp_landmarks):
     uniform_landmarks[0] = (np.array([mp_landmarks[24].x, mp_landmarks[24].y, mp_landmarks[24].z]) +
                             np.array([mp_landmarks[23].x, mp_landmarks[23].y, mp_landmarks[23].z])) / 2
 
-    uniform_landmarks[3] = np.zeros(3)
-    for i in range(11):
-        uniform_landmarks[3] += np.array([mp_landmarks[i].x, mp_landmarks[i].y, mp_landmarks[i].z])
-    uniform_landmarks[3] /= 11
+    # uniform_landmarks[3] = np.zeros(3)
+    # for i in range(11):
+    #     uniform_landmarks[3] += np.array([mp_landmarks[i].x, mp_landmarks[i].y, mp_landmarks[i].z])
+    # uniform_landmarks[3] /= 11
+    uniform_landmarks[3] = (np.array([mp_landmarks[7].x, mp_landmarks[7].y, mp_landmarks[7].z]) +
+                            np.array([mp_landmarks[8].x, mp_landmarks[8].y, mp_landmarks[8].z])) / 2
 
     uniform_landmarks[2] = (uniform_landmarks[3] + uniform_landmarks[16]) / 2
     uniform_landmarks[1] = (uniform_landmarks[0] + uniform_landmarks[16]) / 2
@@ -38,4 +40,9 @@ def convert_to_kinect_coords(mp_landmarks):
     uniform_landmarks[4] = np.array([mp_landmarks[12].x * Csx, mp_landmarks[12].y * Csy, mp_landmarks[12].z])
     uniform_landmarks[7] = np.array([mp_landmarks[11].x / Csx, mp_landmarks[11].y * Csy, mp_landmarks[11].z])
 
+    if (reflect_axis_Y):
+        uniform_landmarks[:, 1] = 1.0 - uniform_landmarks[:, 1]  # Invert and normalize to the screen height
+
+
     return uniform_landmarks
+

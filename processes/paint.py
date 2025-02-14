@@ -26,6 +26,9 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
         # if not color_image:
         #     color_image = saved_color_image
         if len(color_image.shape) > 2:
+            # TODO: Если брать кадр c вебкамеры, то разрешение 640x480.
+            #  Надо или делать resize или изначально ставить такое разрешение
+            color_image = cv2.resize(color_image, (frame.get_color_width(), frame.get_color_height()))
             color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 3))
         else:
             color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 4))

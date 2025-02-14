@@ -33,8 +33,8 @@ class HAR:
         self.__set_nn_model()
 
     def __set_nn_model(self):
-        self.fall_recognizer = Recognizer(environ.get('nn_model_fall_check_path'))
-        self.act_recognizer = Recognizer(environ.get('nn_model_path'))
+        self.fall_recognizer = Recognizer(environ.get('nn_model_path'))
+        self.act_recognizer = Recognizer(environ.get('nn_model_fall_check_path'))
 
     def __set_basic_assembly(self):
         ba = SkeletonReader(self.__ba_path, 'TST', dim='3D').read_skeletons(basic_assembly_reading=True)
@@ -77,9 +77,10 @@ class HAR:
                 else:
                     result_fall = self.fall_recognizer.predict_actions(dm[None, :])
                     result_act = self.act_recognizer.predict_actions(dm[None, :])
-                    classes[i] = self.fall_classes[np.argmax(result_fall)] if result_fall is not None else 'no_action'
-                    if (classes[i] == 'FALL' and self.act_classes[np.argmax(result_act)] != 'falling'):
-                        classes[i] = 'test'
+                    #classes[i] = self.fall_classes[np.argmax(result_fall)] if result_fall is not None else 'no_action'
+                    classes[i] = self.act_classes[np.argmax(result_act)] if result_act is not None else 'no_action'
+                    #if (classes[i] == 'FALL' and self.act_classes[np.argmax(result_act)] != 'falling'):
+                        #classes[i] = 'test'
 
         return classes
 
@@ -88,5 +89,7 @@ class HAR:
         #  Here is a mistake. You should define video size
         if video.shape[0] < 32:
             return None
+        #np.save("kinect_skeleton_sitting.npy", video)
         distance_matrix = np.mean(np.linalg.norm(self.__basic_assembly[:, None] - video[None, :], axis=-1), axis=-1)
+        #np.save("kinect_distance_matrix_sitting.npy", distance_matrix)
         return distance_matrix / gray_max

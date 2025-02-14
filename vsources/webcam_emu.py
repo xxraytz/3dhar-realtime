@@ -30,7 +30,8 @@ class ScreenJoint:
 class Joint:
 
     def __init__(self, x, y, z, state):
-        self.Position = Position(x / 1000, y / 1000, z / 1000)
+        #self.Position = Position(x / 1000, y / 1000, z / 1000)
+        self.Position = Position(x, y, z)
         self.TrackingState = int(state)
 
     def __str__(self):
@@ -84,10 +85,10 @@ class CameraStreamer:
         """
         while True:
             frame_skeleton = self.__pose_estimator(self.__current_color_frame)
-            if frame_skeleton.pose_landmarks is None:
+            if frame_skeleton.pose_world_landmarks is None:
                 yield None
             else:
-                frame_skeleton = self.__unify(frame_skeleton.pose_landmarks.landmark)
+                frame_skeleton = self.__unify(frame_skeleton.pose_world_landmarks.landmark, True)
 
             skeleton = []
             for sk in frame_skeleton:
@@ -112,29 +113,27 @@ class CameraStreamer:
             if frame_skeleton.pose_landmarks is None:
                 yield None
             else:
-                frame_skeleton = self.__unify(frame_skeleton.pose_landmarks.landmark)
+                frame_skeleton = self.__unify(frame_skeleton.pose_landmarks.landmark, False)
             skeleton = []
             for sk in frame_skeleton:
-                skeleton.append(ScreenJoint(*(sk[:2]), 2))
+                skeleton.append(ScreenJoint(*(sk[:2])))
 
             for i in self.__exceed_points:
                 skeleton.insert(i, ScreenJoint(0, 0))
             yield [
-                Body(skeleton, True)
-            ] + [
-                Body(skeleton, False)
-            ] * (self.max_body_count - 1)
+                skeleton
+            ] * self.max_body_count
 
     def __color_frames_generator(self):
         """
         Генератор вовзращает кадр с видеопотока.
         """
-        cap = cv2.VideoCapture(self.__color_data)
+        cap = cv2.VideoCapture(0)
         while True:
             ret, frame = cap.read()
             if ret:
                 self.__frame_number += 1
-                yield frame
+                yield cv2.flip(frame, 1)
             else:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 print('Camera to zero')
@@ -169,9 +168,13 @@ class CameraStreamer:
         На самом деле просто возвращает результат другого генератора - чет типо того.
         """
         skeleton = []
-        for joint in joints:
-            skeleton.append(ScreenJoint(joint.Position.x * 1e6, joint.Position.y * 1e6))
+        color_frames = next(self.__body_color_frames_generator())
+        # Один скелет возможен в кадре, поэтому индекс [0]
+        for i, joint in enumerate(color_frames[0]):
+            skeleton.append(ScreenJoint(joint.x * CameraStreamer.CAMERA_STREAM_WIDTH, joint.y * CameraStreamer.CAMERA_STREAM_HEIGHT))
         return skeleton
+
+
 
     def __enter__(self):
         return self
