@@ -1,0 +1,15 @@
+{
+  "SKELETON_USABLE_JOINTS_NUMBER": {
+    "SpineBase": 0, "SpineMid": 1, "Neck": 2, "Head": 3,
+    "ShoulderLeft": 4, "ElbowLeft": 5, "WristLeft": 6,
+    "ShoulderRight": 8, "ElbowRight": 9, "WristRight": 10,
+    "HipLeft": 12, "KneeLeft": 13, "AnkleLeft": 14,
+    "HipRight": 16, "KneeRight": 17, "AnkleRight": 18,
+    "SpineShoulder": 20
+  },
+  "SKELETON_LINES": [
+    [0, 1], [1, 16], [16, 2], [2, 3],
+    [16, 4], [4, 5], [5, 6], [16, 7], [7, 8], [8, 9],
+    [0, 10], [10, 11], [11, 12], [0, 13], [13, 14], [14, 15]
+  ]
+}

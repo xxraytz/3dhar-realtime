@@ -10,5 +10,5 @@ class IncidentAdmin(admin.ModelAdmin):
 
 @admin.register(models.CustomUser)
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ['email', 'phone_number', 'date_joined', 'password']
+    list_display = ['email', 'phone_number', 'date_joined']
     list_filter = ('email', 'date_joined', 'phone_number')

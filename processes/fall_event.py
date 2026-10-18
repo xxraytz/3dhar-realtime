@@ -12,10 +12,7 @@ from enum import Enum
 
 import cv2 as cv2
 import numpy as np
-from core.types import KinectFrame
 from http import HTTPStatus  # https://docs.python.org/3/library/http.html
-
-# SKELETON_POINTS_COUNT = 17
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -142,10 +139,7 @@ def send_preprocessing(q_print, config):
             print('Exiting')
             break
         elif mode.value is Call.VIDEO_OPEN_STREAMING.value:
-            logger.debug("Open streaming...")
-            print("Open streaming...")
             video_dir, video_resolution, = data[1]
-            print(video_resolution)
             fourcc = cv2.VideoWriter_fourcc(*'h264')
             video_stream_writing = cv2.VideoWriter(
                 video_dir + '/Color/' + video_stream_path,

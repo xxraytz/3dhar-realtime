@@ -1,374 +1,310 @@
 import argparse
-import json
-import logging
-import math
 import os
-
+import queue
+from core.config import ROOT, load_config
+import logging
+from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread, HARThread
 import cv2
 import numpy as np
-import time
-from enum import Enum
-from multiprocessing import Queue, Process
-from datetime import datetime
-from processes.paint import paint
-from processes.fall_event import send_preprocessing
 
-import comtypes
-from pykinect2 import PyKinectV2, PyKinectRuntime
+import sys
+from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton, QMainWindow, QStatusBar, \
+    QScrollArea, QListView, QMessageBox
+from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup
+from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QTimer
 
-from core import types
-from core.types import SkeletonFrame
-from core.types import SvmWrapper
-from core.types import KinectFrame
-
-from collections import deque
-
-# CONSTANTS
-KINECT_FREQUENCY = 0.033
-SKELETON_POINTS_COUNT: int
-SKELETON_COLORS = []
-SKELETON_USABLE_JOINTS_NUMBER = {}
-SKELETON_LINES = []
-EXCLUDE_SKELETON_DISTANCES = []
-SKELETON_HEIGHTS_CORRECTION: int
-host_image = np.array([0, 0])
-
-# Global variables
-gl_distances = []
-gl_distances_speed = []
-gl_distances_acceleration = []
-gl_heights = []
-gl_heights_speed = []
-gl_heights_acceleration = []
-
-curr_frame_number = 0
-prev_frame_number = 0
-upper_bound = 3
-lower_bound = -3
-fall_start_frame = -1
-fall_end_frame = -1
-outlier = False
-skeleton_frames = []
-terminate = False
-prev_fall_state = False
-
-
-class Call(Enum):
-    LOGIN = "login"
-    TEST = "test"
-    VIDEO_OPEN = "open_video"
-    VIDEO_RECORDING = "recording_video"
-    VIDEO_CLOSE = "close_video"
-    EXIT = "exit"
-    VIDEO_APPEND = "video_append"
-    VIDEO_CUT_SEND = "video_cut&send"
-    VIDEO_STREAMING = "video_streaming"
-    VIDEO_OPEN_STREAMING = "video_streaming_open"
-    VIDEO_CLOSE_STREAMING = "video_streaming_close"
-
-
-def get_max_height(coordinates):
-    max_height = coordinates[SKELETON_USABLE_JOINTS_NUMBER.get("Head")].y + SKELETON_HEIGHTS_CORRECTION
-
-    for frame in skeleton_frames:
-        h = frame.get_coordinates()[SKELETON_USABLE_JOINTS_NUMBER.get("Head")].y + SKELETON_HEIGHTS_CORRECTION
-        if h > max_height:
-            max_height = h
-
-    return max_height
-
-
-def generate_lib_svm_vector(height):
-    """Generate svm vector by distances between joints"""
-    current_distance_acceleration = gl_distances_acceleration[frame_count]
-    current_height_acceleration = gl_heights_acceleration[frame_count]
-
-    if current_height_acceleration is None or current_distance_acceleration is None:
-        return None
-
-    current_distances = gl_distances[frame_count]
-    current_heights = gl_heights[frame_count]
-    current_distances_speed = gl_distances_speed[frame_count]
-    current_heights_speed = gl_heights_speed[frame_count]
-
-    assert height != 0
-    svm_node = []
-    # Distances
-    svm_node.extend([dist / height for dist in current_distances])
-    svm_node.extend([cur_height / height for cur_height in current_heights])
-    svm_node.extend([speed / height for speed in current_distances_speed])
-    svm_node.extend([cur_height / height for cur_height in current_heights_speed])
-    svm_node.extend([accel / height for accel in current_distance_acceleration])
-    svm_node.extend([cur_height / height for cur_height in current_height_acceleration])
-
-    return svm_node
-
-
-def generate_distances_matrix(local_coordinates):
-    distances = np.zeros(0)
-    for f_i in range(len(local_coordinates)):
-        for f_j in range(f_i + 1, len(local_coordinates)):
-            if [f_i, f_j] not in EXCLUDE_SKELETON_DISTANCES:
-                distances = np.append(distances,
-                                      math.sqrt(math.pow(local_coordinates[f_i].x - local_coordinates[f_j].x, 2)
-                                                + math.pow(local_coordinates[f_i].y - local_coordinates[f_j].y, 2)
-                                                + math.pow(local_coordinates[f_i].z - local_coordinates[f_j].z, 2)))
-
-    gl_distances.append(distances)
-
-
-def generate_heights_matrix(local_coordinates):
-    heights = np.zeros(0)
-    for f_i in range(len(local_coordinates)):
-        heights = np.append(heights, local_coordinates[f_i].y + SKELETON_HEIGHTS_CORRECTION)
-
-    gl_heights.append(heights)
-
-
-def generate_distances_speed_matrix():
-    if frame_count < 1:
-        gl_distances_speed.append(None)
-        return
-
-    vec_prev_distances = gl_distances[frame_count - 1]
-    vec_curr_distances = gl_distances[frame_count]
-    distances_speed = vec_curr_distances - vec_prev_distances
-    gl_distances_speed.append(distances_speed)
-
-
-def generate_heights_speed_matrix():
-    if frame_count < 1:
-        gl_heights_speed.append(None)
-        return
-
-    vec_prev_height = gl_heights[frame_count - 1]
-    vec_cur_height = gl_heights[frame_count]
-    heights_speed = vec_cur_height - vec_prev_height
-    gl_heights_speed.append(heights_speed)
-
-
-def generate_distances_acceleration_matrix():
-    if frame_count < 2:
-        gl_distances_acceleration.append(None)
-        return
-
-    vec_prev_distances_speed = gl_distances_speed[frame_count - 1]
-    vec_curr_distances_speed = gl_distances_speed[frame_count]
-    distances_acceleration = vec_curr_distances_speed - vec_prev_distances_speed
-    gl_distances_acceleration.append(distances_acceleration)
-
-
-def generate_heights_acceleration_matrix():
-    if frame_count < 2:
-        gl_heights_acceleration.append(None)
-        return
-
-    vec_prev_heights_speed = gl_heights_speed[frame_count - 1]
-    vec_curr_heights_speed = gl_heights_speed[frame_count]
-    heights_acceleration = vec_curr_heights_speed - vec_prev_heights_speed
-    gl_heights_acceleration.append(heights_acceleration)
-
-
-def fill_matrix(coordinates):
-    generate_distances_matrix(coordinates)
-    generate_heights_matrix(coordinates)
-    generate_distances_speed_matrix()
-    generate_heights_speed_matrix()
-    generate_distances_acceleration_matrix()
-    generate_heights_acceleration_matrix()
-
-
-def get_outlier_value():
-    return 0
-
-
-def fall_detect_pages_algo(svm_value, fall, cu_sum):
-    if svm_value >= 0.0:
-        if cu_sum >= upper_bound:
-            cu_sum = upper_bound
-        else:
-            cu_sum += svm_value
-
-        if cu_sum == upper_bound:
-            fall = True
-            return fall, cu_sum
-        else:
-            return fall, cu_sum
-    else:
-        if cu_sum + svm_value <= lower_bound:
-            cu_sum = lower_bound
-        else:
-            cu_sum += svm_value
-
-        if cu_sum == lower_bound:
-            fall = False
-            return fall, cu_sum
-        else:
-            return fall, cu_sum
-
-
-def capture_picture():
-    with PyKinectRuntime.PyKinectRuntime(
-            PyKinectV2.FrameSourceTypes_Color
-            | PyKinectV2.FrameSourceTypes_Body
-            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
-        time.sleep(2)
-        while True:
-            if kinect.has_new_color_frame():
-                color_image = kinect.get_last_color_frame()
-                color_image = np.reshape(color_image, (kinect.color_frame_desc.Height, kinect.color_frame_desc.Width, 4))
-                color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2RGBA)
-                cv2.imwrite('_color_image.png', color_image)
-                break
-
-
-logging.getLogger(comtypes.logger.name).setLevel(logging.CRITICAL)
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='config.json', help='JSON config')
-    parser.add_argument('-v', default=1, help='Kinect data visualisation')
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Skeleton-based activity recognition with Kinect v2.')
+    parser.add_argument('--config', default=str(ROOT / 'config.example.json'))
+    parser.add_argument('--source', choices=['kinect', 'recording'], default='kinect')
+    parser.add_argument('--recording', help='Scene directory containing Body/ and Color/.')
+    parser.add_argument('--identify', action='store_true', help='Enable identification using private local assets.')
     args = parser.parse_args()
+    if args.source == 'recording' and not (args.recording or os.environ.get('emulator_base_path')):
+        parser.error('--source recording requires --recording or emulator_base_path')
+    return args
 
-    logger.info(f'Load config from {args.config}')
 
-    with open(args.config, 'r') as stream:
-        config = json.load(stream)
-        EXCLUDE_SKELETON_DISTANCES = config["EXCLUDE_SKELETON_DISTANCES"]
-        SKELETON_COLORS = config["SKELETON_COLORS"]
-        SKELETON_USABLE_JOINTS_NUMBER = config["SKELETON_USABLE_JOINTS_NUMBER"]
-        SKELETON_LINES = config["SKELETON_LINES"]
-        SKELETON_POINTS_COUNT = config["SKELETON_POINTS_COUNT"]
-        SKELETON_HEIGHTS_CORRECTION = config["SKELETON_HEIGHTS_CORRECTION"]
-    config = args.config
+class App(QWidget):
+    set_people_list = pyqtSignal(list)
 
-    queue_video_recording = Queue()
-    process_video_recording = Process(target=send_preprocessing, args=(queue_video_recording, config))
-    process_video_recording.start()
+    def __init__(self, args):
+        super().__init__()
+        self.conf = args.config
+        load_config(self.conf)
+        self.identify = args.identify
+        self._closing = False
+        self.size = (1280, 800)
+        self.__people_list = None
+        self.image_label = QLabel(self)
+        self.image_label.resize(*self.size)
+        self.text_label = QLabel('', )
+        self.text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.text_label.setStyleSheet("background-color:white; color:red; font-size:60px; font-weight:bold;"
+                                      "border: 1px")
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide_label)
 
-    # queue_video_recording.put(Call.LOGIN)
+        self.pause_button = QPushButton()
+        self.pause_button.setText('Pause / resume')
+        self.pause_button.setFixedWidth(200)
+        self.pause_button.clicked.connect(self.pause)
 
-    # logger.info('Kinect color image saving...')
-    # capture_picture()
-    # logger.info('Kinect color image saved.')
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.image_label)
+        self.main_layout.addWidget(self.text_label)
+        self.main_layout.addWidget(self.pause_button)
 
-    # queue_print.put(Call.TEST)
-    # queue_print.put(Call.EXIT)
-    # while queue_print.qsize() != 0:
-    #     pass
-    # process_print.join()
-    # print("End.")
-    # exit(0)
-    visual = args.v
-    logger.info(f'Starting service...')
-    logger.info(f'Connecting to Microsoft Kinect v2')
+        self.setLayout(self.main_layout, )
+        grey_image = QPixmap(*self.size)
+        grey_image.fill(QColor('grey'))
+        self.image_label.setPixmap(grey_image)
 
-    with PyKinectRuntime.PyKinectRuntime(
-            PyKinectV2.FrameSourceTypes_Color
-            | PyKinectV2.FrameSourceTypes_Body
-            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
+        self.main_thread = MainThread(self.conf, args.source, args.recording)
+        self.video_streaming_thread = VideoStreamingThread(self.conf)
+        self.people_monitoring_thread = PeopleMonitoringThread(self.conf, 6)
+        self.human_action_recognition_thread = HARThread(self.conf, 6)
 
-        kinect_frame = KinectFrame()
-        kinect_frame.set_path(f'recs/{os.environ.get("test_person_name")}/Scene_{datetime.now().date()}_'
-                              f'{datetime.now().time().hour}-'
-                              f'{datetime.now().time().minute}-'
-                              f'{datetime.now().time().second}')
-        kinect_frame.create_directory()
-        bodies = None
+        self.video_streaming_thread.video_frame_sending.connect(self.update_image)
+        self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
+        # Identity diagnostics are available from the worker; keep the main UI focused.
+        self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
+        self.main_thread.video_frame_generate.connect(self.video_streaming_append)
+        self.main_thread.video_frame_generate.connect(self.human_action_recognition)
+        if self.identify:
+            self.main_thread.video_frame_generate.connect(self.monitoring_append)
+        self.human_action_recognition_thread.send_action_info.connect(self.set_people_actions)
+        for worker in self.workers():
+            worker.failed.connect(self.on_worker_error)
 
-        if visual == '1':
-            queue_video_streaming = Queue()
-            process_video_streaming = Process(target=paint, args=(queue_video_streaming, config))
-            process_video_streaming.start()
+    def workers(self):
+        workers = [self.main_thread, self.video_streaming_thread, self.human_action_recognition_thread]
+        if self.identify:
+            workers.append(self.people_monitoring_thread)
+        return workers
 
-        skeleton_frame = None
+    @pyqtSlot(str)
+    def on_worker_error(self, message):
+        if not self._closing:
+            self.shutdown()
+            QMessageBox.critical(self, 'Capture stopped', message)
 
-        frame_count = 0
-        time.sleep(2)
+    def shutdown(self):
+        self._closing = True
+        self.timer.stop()
+        for worker in self.workers():
+            worker.requestInterruption()
+        for worker in self.workers():
+            worker.wait()
 
-        queue_video_recording.put((Call.VIDEO_OPEN_STREAMING, [
-            kinect_frame.get_path(),
-            (kinect.color_frame_desc.Width, kinect.color_frame_desc.Height)
-        ]))
+    @staticmethod
+    def enqueue(frames, frame):
+        try:
+            frames.put_nowait(frame)
+        except queue.Full:
+            pass
 
-        while not terminate:
-            time.sleep(KINECT_FREQUENCY)
-            if True:
-                if kinect.has_new_body_frame():
-                    bodies = kinect.get_last_body_frame()
 
-                if kinect.has_new_color_frame():
-                    kinect_frame.set_color_width(kinect.color_frame_desc.Width)
-                    kinect_frame.set_color_height(kinect.color_frame_desc.Height)
-                    kinect_frame.color_frame = kinect.get_last_color_frame()
+    def hide_label(self):
+        self.text_label.setText('')
 
-                kinect_frame.player_screen_coordinates = []
-                kinect_frame.player_coordinates = []
+    def show_label(self):
+        self.text_label.setText('IDs have been updated')
+        self.timer.start(1300)
 
-                if bodies is not None:
-                    next_frame = False
-                    have_bodies = False
-                    for i in range(0, kinect.max_body_count):
-                        body = bodies.bodies[i]
+    def start(self):
+        # Validate assets before capture starts, so failures do not strand workers.
+        self.human_action_recognition_thread.database_connect()
+        if self.identify:
+            self.people_monitoring_thread.database_connect()
+        for worker in self.workers():
+            worker.start()
 
-                        if not body.is_tracked:
-                            continue
+    @pyqtSlot(list)
+    def set_monitoring_people_list(self, people):
+        self.__people_list = people
+        self.people_monitoring_thread.set_monitoring_people(people)
 
-                        have_bodies = True
-                        next_frame = True
-                        joints = body.joints  # Joints in a skeleton space
-                        joints_color_space = kinect.body_joints_to_color_space(joints)
-                        player_coordinates = []
-                        player_screen_coordinates = []
+    def pause(self):
+        self.main_thread.pause()
 
-                        SKELETON_USABLE_JOINTS_NUMBER = dict(
-                            sorted(
-                                SKELETON_USABLE_JOINTS_NUMBER.items(),
-                                key=lambda x: x[1]
-                            )
-                        )
-                        for j in SKELETON_USABLE_JOINTS_NUMBER.values():
-                            player_coordinates.append(
-                                types.Joint(joints[j].Position.x * 1000, joints[j].Position.y * 1000,
-                                            joints[j].Position.z * 1000, joints[j].TrackingState))
+    @pyqtSlot(object)
+    def human_action_recognition(self, image):
+        if not self._closing and not self.human_action_recognition_thread.is_busy():
+            self.enqueue(self.human_action_recognition_thread.q_skeletons, image)
 
-                            if math.isinf(joints_color_space[j].x) and math.isinf(joints_color_space[j].y):
-                                player_screen_coordinates.append(types.ScreenJoint(0, 0))
-                            else:
-                                player_screen_coordinates.append(types.ScreenJoint(int(joints_color_space[j].x),
-                                                                                   int(joints_color_space[j].y)))
+    @pyqtSlot(object)
+    def monitoring_append(self, image):
+        if not self._closing and not self.people_monitoring_thread.is_busy():
+            self.enqueue(self.people_monitoring_thread.queue, image)
 
-                        kinect_frame.player_screen_coordinates.append(player_screen_coordinates)
-                        kinect_frame.player_coordinates.append(player_coordinates)
+    @pyqtSlot(object)
+    def video_streaming_append(self, image):
+        if not self._closing:
+            self.enqueue(self.video_streaming_thread.queue, image)
 
-                    if visual == '1':
-                        queue_video_streaming.put({i: kinect_frame})
-                    if len(kinect_frame.player_screen_coordinates) > 0:
-                        queue_video_recording.put((Call.VIDEO_STREAMING, [
-                            kinect_frame.player_coordinates,
-                            kinect_frame.player_screen_coordinates,
-                            kinect_frame.color_frame,
-                        ]))
+    @pyqtSlot(list)
+    def set_people_actions(self, classes):
+        self.video_streaming_thread.set_classes(classes)
 
-                    if process_video_streaming.exitcode is not None:
+    @pyqtSlot(list)
+    def set_people_indexes(self, people_ids):
+        self.show_label()
+        self.video_streaming_thread.set_indexes([f'{x}' for x in people_ids])
 
-                        while not queue_video_streaming.qsize() == 0:
-                            queue_video_streaming.get()
-                        queue_video_recording.put(Call.VIDEO_CLOSE_STREAMING)
-                        process_video_recording.join()
-                        process_video_streaming.join()
-                        terminate = True
-                    elif i == 5 and not have_bodies:
-                        queue_video_streaming.put({i: kinect_frame})
-                    # Иван Кукурудзяк kukurudzyak
-                    if next_frame:
-                        frame_count += 1
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.shutdown()
+        event.accept()
 
-    # Close Kinect sensor, close the window and quit.
-    logger.info(f'Microsoft Kinect v2 was disconnected')
-    logger.info(f'Stopping service...')
-    logger.info(f'Service stopped.')
+    def convert_cv_qt(self, cv_img):
+        rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        converted_image = QImage(rgb_image, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+        scaled_converted_image = converted_image.scaled(*self.size, Qt.AspectRatioMode.KeepAspectRatio)
+        return QPixmap.fromImage(scaled_converted_image)
+
+    @pyqtSlot(np.ndarray)
+    def update_image(self, cv_image):
+        qt_image = self.convert_cv_qt(cv_image)
+        self.image_label.setPixmap(qt_image)
+
+    @pyqtSlot(list)
+    def update_people_identification_list(self, people):
+        self.set_people_list.emit(people)
+
+
+class PeopleListWindow(QWidget):
+    change_monitoring_people_list = pyqtSignal(list)
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Choose a people to recognize")
+        self.resize(300, 400)
+        self.string_list = []
+
+        layout = QVBoxLayout()
+        list_widget = QWidget()
+        list_layout = QVBoxLayout()
+        list_widget.setLayout(list_layout)
+
+        self.list_view = QListView()
+        self.list_view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
+        self.list_view.setModel(self.create_model())
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(self.list_view)
+
+        list_layout.addWidget(scroll_area)
+
+        layout.addWidget(list_widget)
+
+        button_accept = QPushButton("Accept")
+        button_accept.clicked.connect(self.on_accept_button_clicked)
+        layout.addWidget(button_accept)
+
+        self.setLayout(layout)
+
+    def create_model(self):
+        model = QStandardItemModel()
+        for string in self.string_list:
+            item = QStandardItem(string)
+            item.setCheckable(False)
+            model.appendRow(item)
+        return model
+
+    def set_people_list(self, str_list):
+        if str_list:
+            self.string_list = str_list
+            self.list_view.setModel(self.create_model())
+
+    def on_accept_button_clicked(self):
+        selected_indexes = self.list_view.selectedIndexes()
+        selected_strings = [self.string_list[index.row()] for index in selected_indexes]
+        logger.info(f'Selected people: {selected_strings}')
+        if len(selected_strings) > 0:
+            QMessageBox.information(self, 'Выбранные строки', "\n".join(selected_strings))
+            self.change_monitoring_people_list.emit(selected_strings)
+            self.close()
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Не выбрано ни одной строки")
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, args):
+        super(MainWindow, self).__init__()
+        self.setGeometry(100, 100, 0, 0)
+        self.people_window = PeopleListWindow()
+        self.setWindowTitle("Skeleton Activity Recognition")
+        self.main_widget = App(args)
+        self.setCentralWidget(self.main_widget)
+        self.setStatusBar(QStatusBar(self))
+
+        menu = self.menuBar()
+        menu.setNativeMenuBar(True)
+
+        setting_menu = menu.addMenu("&Settings")
+        change_video_mode_action = setting_menu.addMenu('&Video mode')
+        change_video_mode_action.setStatusTip("Change video mode (Real Video, Skeletal Video)")
+        choose_people_to_id = QAction('Choose people', self)
+        choose_people_to_id.setStatusTip('Choose more than one people to identify')
+        choose_people_to_id.triggered.connect(self.on_choose_people)
+
+        choose_people_to_id.setEnabled(args.identify)
+        setting_menu.addAction(choose_people_to_id)
+
+        video_mode_group = QActionGroup(self, )
+        self.video_mode_skeletal = QAction('Skeletal video', self)
+        self.video_mode_real = QAction('Real video', self)
+        self.video_mode_skeletal.setStatusTip("Skeletal video")
+        self.video_mode_real.setStatusTip("Real video")
+        self.video_mode_skeletal.setCheckable(True)
+        self.video_mode_real.setCheckable(True)
+        self.video_mode_skeletal.setChecked(True)
+
+        self.video_mode_skeletal.triggered.connect(self.set_video_mode_skeletal)
+        self.video_mode_real.triggered.connect(self.set_video_mode_real)
+
+        self.main_widget.set_people_list.connect(self.update_people_list)
+        video_mode_group.addAction(self.video_mode_real)
+        video_mode_group.addAction(self.video_mode_skeletal)
+
+        self.people_window.change_monitoring_people_list.connect(self.main_widget.set_monitoring_people_list)
+
+        change_video_mode_action.addAction(self.video_mode_real)
+        change_video_mode_action.addAction(self.video_mode_skeletal)
+        self.main_widget.start()
+
+    def set_video_mode_real(self):
+        self.main_widget.video_streaming_thread.set_real_video_mode()
+
+    def set_video_mode_skeletal(self):
+        self.main_widget.video_streaming_thread.set_skeletal_video_mode()
+
+    @pyqtSlot(list)
+    def update_people_list(self, people):
+        self.people_window.set_people_list(people)
+
+    def on_choose_people(self):
+        self.people_window.show()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.main_widget.shutdown()
+        self.people_window.close()
+        event.accept()
+
+
+
+if __name__ == '__main__':
+    args = parse_arguments()
+    app = QApplication(sys.argv)
+    a = MainWindow(args)
+    a.show()
+    sys.exit(app.exec())
