@@ -1,5 +1,5 @@
-# Real-Time Skeleton Activity Recognition
 
+# Real-time 3D skeleton-based human activity recognition with Kinect v2 and a PyQt6 GUI.
 A Python desktop application that recognizes human activities from **Kinect v2 skeletons for up to six people**, with a **PyQt6 GUI**. It processes a live sensor stream or a recorded scene and displays activity labels for each tracked person. Optional person identification uses enrolled motion profiles.
 
 ## GUI
