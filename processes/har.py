@@ -3,7 +3,7 @@ from collections import deque
 import numpy as np
 from tools.skeleton_reader import SkeletonReader
 from tools.skeleton_corrector import SkeletonCorrector
-from os import environ
+from core.config import asset_path
 from tools.nn_model import Recognizer
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -14,8 +14,8 @@ logger.setLevel(logging.INFO)
 class HAR:
 
     def __init__(self, body_number, dimension='3D', color_style='GRAY', ):
-        self.__ba_path = environ.get('ba_path')
-        self.__order_path = environ.get('order_path')
+        self.__ba_path = asset_path("ba_path", "data/nn-model/162database.txt")
+        self.__order_path = asset_path("order_path", "data/nn-model/cleanup_seq.txt")
         self.__dim = dimension
         self.database = None
         self.classes = ['standing', 'walking', 'sitting', 'falling', 'grasp', 'ungrasp',
@@ -42,25 +42,34 @@ class HAR:
 
         ba = [el[:, :-1] for el in ba]
 
+        if len(ba) != 32:
+            raise ValueError('The HAR model requires exactly 32 reference poses.')
         return np.asarray([el[:, :-1] for el in SkeletonCorrector().transform(ba)] if self.__dim == '2D'
                           else SkeletonCorrector().transform(ba))
 
     def __clean_basic_assembly(self, ba):
-        with open(self.__order_path, 'r+') as file:
+        with open(self.__order_path, 'r') as file:
             ba = np.asarray(ba)[[int(el) for el in file.readline().split(',')]]
         return [row for row in ba]
 
     def start_monitoring(self):
+        self._tracking_ids = {}
         for i in range(0, self.__body_count):
             self.skeletons[f'skeleton_{i:03d}'] = deque(maxlen=32)
 
     def append_frame(self, frame):
         for i, sk_ind in enumerate(frame):
             if sk_ind is not None:
+                tracking_id = getattr(sk_ind, 'tracking_id', None)
+                if self._tracking_ids.get(i) != tracking_id:
+                    self.skeletons[f'skeleton_{i:03d}'].clear()
+                self._tracking_ids[i] = tracking_id
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
+            else:
+                self.skeletons[f'skeleton_{i:03d}'].clear()
 
     def get_person_class(self):
-        classes = ['no_action'] * 6
+        classes = ['no_action'] * self.__body_count
         for i, sk_ind in enumerate(self.skeletons):
             if len(self.skeletons[sk_ind]) == 32:
                 video = list(map(lambda x:
@@ -78,7 +87,6 @@ class HAR:
 
     def __dm_calculating(self, video):
         gray_max = 0.86
-        #  Here is a mistake. You should define video size
         if video.shape[0] < 32:
             return None
         distance_matrix = np.mean(np.linalg.norm(self.__basic_assembly[:, None] - video[None, :], axis=-1), axis=-1)

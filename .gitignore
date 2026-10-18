@@ -154,3 +154,11 @@ data/
 *.mp4
 *.png
 *.csv
+
+# Public examples and local research artifacts
+!config.example.json
+.DS_Store
+document_id_results/
+just_file.txt
+*.sqlite
+*.dll

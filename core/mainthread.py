@@ -1,112 +1,62 @@
-import argparse
-import json
+"""Qt workers for capture, rendering, activity recognition and optional identity."""
 import logging
-import os
 import queue
-from datetime import datetime
 import time
-from enum import Enum
 
+import numpy as np
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from core.config import asset_path, load_config
+from core.types import Joint, SJoints, SkeletonFrame, KinectFrame, KinectFrameReader
+from processes.har import HAR
+from processes.id_monitoring import PersonIdentification
+from processes.paint import paint, VideoMode
 from pykinect2_emu.pykinect2_emu import KinectEmulator
 
-import comtypes
-from pykinect2 import PyKinectV2, PyKinectRuntime
-
-import cv2
-import numpy as np
-
-# from core import types
-from core.types import SkeletonFrame, VideoRecorder, VideoStreaming
-from core.types import KinectFrame
-from core.types import KinectFrameReader
-from core.types import Joint, SJoints
-from processes.paint import paint, VideoMode
-from processes.id_monitoring import PersonIdentification
-from processes.har import HAR
-
-from PyQt6.QtCore import Qt, QThread, pyqtSlot, pyqtSignal, QElapsedTimer, QTimer
-
-# CONSTANTS
+logger = logging.getLogger(__name__)
 KINECT_FREQUENCY = 0.04
 
 
-# SKELETON_POINTS_COUNT: int
-# SKELETON_COLORS = []
-# USABLE_SK_JOINTS = {}
-# SKELETON_LINES = []
-# EXCLUDE_SKELETON_DISTANCES = []
-# SKELETON_HEIGHTS_CORRECTION: int
+class Worker(QThread):
+    failed = pyqtSignal(str)
+
+    def run(self):
+        try:
+            self.process()
+        except Exception as exc:
+            logger.exception('%s failed', type(self).__name__)
+            self.failed.emit(f'{type(self).__name__}: {exc}')
+
+    def stop(self):
+        self.requestInterruption()
+        self.wait()
+
+    def receive(self, frames):
+        while not self.isInterruptionRequested():
+            try:
+                return frames.get(timeout=0.1)
+            except queue.Empty:
+                pass
+        return None
 
 
-class VisualMode(Enum):
-    VIDEO = '1'
-    NoVideo = '0'
-
-
-def capture_picture():
-    logger.info('Kinect color image saving...')
-    with PyKinectRuntime.PyKinectRuntime(
-            PyKinectV2.FrameSourceTypes_Color
-            | PyKinectV2.FrameSourceTypes_Body
-            | PyKinectV2.FrameSourceTypes_Depth) as kinect:
-        time.sleep(2)
-        while True:
-            if kinect.has_new_color_frame():
-                color_image = kinect.get_last_color_frame()
-                color_image = np.reshape(color_image,
-                                         (kinect.color_frame_desc.Height, kinect.color_frame_desc.Width, 4))
-                color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2RGBA)
-                cv2.imwrite('_color_image.png', color_image)
-                break
-    logger.info('Kinect color image saved.')
-    exit(0)
-
-
-def create_store_directory(file):
-    if not os.path.isdir(file):
-        os.mkdir(file)
-    path = file + f'Scene_{datetime.now().date()}_' \
-                  f'{datetime.now().time().hour}-' \
-                  f'{datetime.now().time().minute}-' \
-                  f'{datetime.now().time().second}' + "/"
-    os.mkdir(path)
-    os.mkdir(path + "Body/")
-    os.mkdir(path + "Color/")
-    os.mkdir(path + "Depth/")
-    return path
-
-
-logging.getLogger(comtypes.logger.name).setLevel(logging.CRITICAL)
-logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-
-class VideoStreamingThread(QThread):
+class VideoStreamingThread(Worker):
     video_frame_sending = pyqtSignal(np.ndarray)
 
     def __init__(self, config):
         super().__init__()
-        self.queue = queue.Queue()
-        self._run_flag = True
-        self._pause_flag = False
-        self.__video_mode = VideoMode.SKELETAL
+        self.queue = queue.Queue(maxsize=1)
         self.conf = config
+        self.__video_mode = VideoMode.SKELETAL
         self.__indexes = ['NoID'] * 6
         self.__classes = ['no_action'] * 6
 
-    def run(self):
-        while True:
-            frame = self.queue.get()
-            if frame:
+    def process(self):
+        while not self.isInterruptionRequested():
+            frame = self.receive(self.queue)
+            if frame is not None:
                 image = paint(frame, self.conf, self.__video_mode, self.__indexes, self.__classes)
                 self.video_frame_sending.emit(image)
-            else:
-                continue
-
-    def stop(self):
-        self._run_flag = False
-        self.wait()
 
     def set_real_video_mode(self):
         self.__video_mode = VideoMode.REAL
@@ -114,82 +64,57 @@ class VideoStreamingThread(QThread):
     def set_skeletal_video_mode(self):
         self.__video_mode = VideoMode.SKELETAL
 
-    def set_indexes(self, inds):
-        self.__indexes = inds
+    def set_indexes(self, indexes):
+        self.__indexes = indexes
 
     def set_classes(self, classes):
         self.__classes = classes
-    def pause(self):
-        self._pause_flag = not self._pause_flag
 
 
-class HARThread(QThread):
+class HARThread(Worker):
     send_action_info = pyqtSignal(list)
 
     def __init__(self, config, body_number):
         super().__init__()
-        self._run_flag = True
-        self._pause_flag = False
-        self.__am_size = 32
-        self.q_skeletons = queue.Queue()  # We need clean queue sometimes
-        self.__delay = 2 * 1e3  # sec
-        self._busy_flag = False
+        self.q_skeletons = queue.Queue(maxsize=1)
         self.__har = HAR(body_number, dimension='3D')
+        self._busy_flag = False
 
-    #  Connect to dataset, basic assembly import, set nn
     def database_connect(self):
         self.__har.database_connect()
 
-    def run(self):
-        self.__har.start_monitoring()
-
-        counter = 0
-        while True:
-            frame = (self.q_skeletons.get()).skeleton_frames
-            if frame:
-                self.__har.append_frame(frame)
-            counter += 1
-            if counter > self.__am_size:
-                break
-        self._busy_flag = True
-        classes = self.__har.get_person_class()
-        self.send_action_info.emit(classes)
-        self._busy_flag = False
+    def process(self):
+        while not self.isInterruptionRequested():
+            self.__har.start_monitoring()
+            for _ in range(32):
+                frame = self.receive(self.q_skeletons)
+                if frame is None:
+                    return
+                self.__har.append_frame(frame.skeleton_frames)
+            self._busy_flag = True
+            self.send_action_info.emit(self.__har.get_person_class())
+            # Preserve the original two-second interval without restarting QThreads.
+            deadline = time.monotonic() + 2
+            while not self.isInterruptionRequested() and time.monotonic() < deadline:
+                self.msleep(50)
+            while not self.q_skeletons.empty():
+                self.q_skeletons.get_nowait()
+            self._busy_flag = False
 
     def is_busy(self):
         return self._busy_flag
 
-    def set_monitoring_people(self, people):
-        self.__people = people
 
-    def stop(self):
-        # with self.q_skeletons.mutex:
-        #     self.q_skeletons.queue.clean()
-        while not self.q_skeletons.empty():
-            _ = self.q_skeletons.get()
-        QTimer.singleShot(self.__delay, self.start)
-
-        self._run_flag = False
-        self.wait()
-
-    def pause(self):
-        self._pause_flag = not self._pause_flag
-
-
-class PeopleMonitoringThread(QThread):
+class PeopleMonitoringThread(Worker):
     send_calculated_indexes = pyqtSignal(list)
     send_debug_info = pyqtSignal(dict, dict)
     send_people_information = pyqtSignal(list)
 
     def __init__(self, config, body_number):
         super().__init__()
-        self._run_flag = True
-        self._pause_flag = False
-        self.queue = queue.Queue()
-        self.__t = 10 * 1e3  # sec
-        self.__delay = 5 * 1e3  # sec
-        self._busy_flag = False
+        self.queue = queue.Queue(maxsize=1)
         self.pid = PersonIdentification(body_number)
+        self._busy_flag = False
         self.__people = None
 
     def database_connect(self):
@@ -197,102 +122,75 @@ class PeopleMonitoringThread(QThread):
         self.__people = self.pid.get_people()
         self.send_people_information.emit(self.__people)
 
-    def run(self):
-        self.pid.start_monitoring()
-        timer = QElapsedTimer()
-        timer.start()
-        while timer.elapsed() < self.__t:
-            frame = (self.queue.get()).skeleton_frames
-            if frame:
-                self.pid.append_frame(frame)
-        self._busy_flag = True
-        pids, debug_info, debug_one_class = self.pid.get_person_id(self.__people)
-        self.send_calculated_indexes.emit(pids)
-        self.send_debug_info.emit(debug_info, debug_one_class)
-        self._busy_flag = False
+    def process(self):
+        while not self.isInterruptionRequested():
+            self.pid.start_monitoring()
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                frame = self.receive(self.queue)
+                if frame is None:
+                    return
+                self.pid.append_frame(frame.skeleton_frames)
+            self._busy_flag = True
+            ids, debug, outliers = self.pid.get_person_id(self.__people)
+            self.send_calculated_indexes.emit(ids)
+            self.send_debug_info.emit(debug, outliers)
+            deadline = time.monotonic() + 5
+            while not self.isInterruptionRequested() and time.monotonic() < deadline:
+                self.msleep(50)
+            while not self.queue.empty():
+                self.queue.get_nowait()
+            self._busy_flag = False
 
     def is_busy(self):
         return self._busy_flag
 
     def set_monitoring_people(self, people):
-        self.__people = people
-
-    def stop(self):
-        QTimer.singleShot(self.__delay, self.start)
-        self._run_flag = False
-        self.wait()
-
-    def get_all_people(self):
-        return self.pid.get_people()
-
-    def pause(self):
-        self._pause_flag = not self._pause_flag
+        self.__people = list(people)
 
 
-class MainThread(QThread):
+class MainThread(Worker):
     video_frame_generate = pyqtSignal(KinectFrame)
 
-    def __init__(self, config):
+    def __init__(self, config, source='kinect', recording=None):
         super().__init__()
-        self._run_flag = True
         self._pause_flag = False
-        with open(config, 'r') as stream:
-            config = json.load(stream)
-            self.using_skeleton_joints = config["SKELETON_USABLE_JOINTS_NUMBER"]
-            self.using_skeleton_joints = dict(
-                sorted(
-                    self.using_skeleton_joints.items(),
-                    key=lambda x: x[1]
-                )
-            )
+        self.source = source
+        self.recording = recording
+        config = load_config(config)
+        self.using_skeleton_joints = sorted(config['SKELETON_USABLE_JOINTS_NUMBER'].values())
 
-    def run(self):
-        self.human_reco_service()
+    def open_source(self):
+        if self.source == 'recording':
+            return KinectEmulator(str(self.recording or asset_path('emulator_base_path')))
+        # Kinect is Windows-only; replay and hardware-independent tests do not import COM.
+        from pykinect2 import PyKinectV2, PyKinectRuntime
+        return PyKinectRuntime.PyKinectRuntime(
+            PyKinectV2.FrameSourceTypes_Color | PyKinectV2.FrameSourceTypes_Body)
 
-    def human_reco_service(self):
-
-        # capture_picture()
-
-        with KinectEmulator(os.environ.get('emulator_base_path')) as kinect:
-        #
-        # with PyKinectRuntime.PyKinectRuntime(
-        #         PyKinectV2.FrameSourceTypes_Color
-        #         | PyKinectV2.FrameSourceTypes_Body
-        #         | PyKinectV2.FrameSourceTypes_Depth) as kinect:
-
-            kinect_device = KinectFrameReader(kinect)
-            time.sleep(1)
-
-            while self._run_flag:
-                if not self._pause_flag:
-                    time.sleep(KINECT_FREQUENCY)  # KINECT_FREQUENCY
-
-                    kinect_frame = KinectFrame(kinect_device.get_max_body_count())
-                    kinect_frame.set_color_frame(kinect_device.get_color_frame(), kinect_device.get_color_size())
-
-                    if kinect_device.set_bodies():
-                        for body_index in range(0, kinect_device.get_max_body_count()):
-                            if not kinect_device.is_body_tracked(body_index):
-                                continue
-                            _ = kinect_device.get_joints(body_index)  # Joints in a skeleton space
-                            joints_skeleton_space = kinect_device.get_skeleton_space_joints(body_index, self.using_skeleton_joints.values())  # Joints in a skeleton space
-
-                            joints_color_space = kinect_device.get_color_space_joints(body_index, self.using_skeleton_joints.values())
-
-                            player_coordinates = [Joint(*j) for j in joints_skeleton_space]
-
-                            player_screen_coordinates = [SJoints(*j) for j in joints_color_space]
-
-                            kinect_frame.skeleton_frames[body_index] = SkeletonFrame(player_coordinates,
-                                                                                     player_screen_coordinates)
-
-                        self.video_frame_generate.emit(kinect_frame)
-                else:
-                    time.sleep(0.5)
-
-    def stop(self):
-        self._run_flag = False
-        self.wait()
+    def process(self):
+        with self.open_source() as sensor:
+            reader = KinectFrameReader(sensor)
+            color = None
+            while not self.isInterruptionRequested():
+                self.msleep(40)
+                if self._pause_flag:
+                    continue
+                if reader.has_color_frame():
+                    color = reader.get_color_frame()
+                if color is None or not reader.set_bodies():
+                    continue
+                frame = KinectFrame(reader.get_max_body_count())
+                frame.set_color_frame(color, reader.get_color_size())
+                for index in range(reader.get_max_body_count()):
+                    if not reader.is_body_tracked(index):
+                        continue
+                    coords = reader.get_skeleton_space_joints(index, self.using_skeleton_joints)
+                    screen = reader.get_color_space_joints(index, self.using_skeleton_joints)
+                    skeleton = SkeletonFrame([Joint(*j) for j in coords], [SJoints(*j) for j in screen])
+                    skeleton.tracking_id = getattr(reader.get_body(index), 'tracking_id', index)
+                    frame.skeleton_frames[index] = skeleton
+                self.video_frame_generate.emit(frame)
 
     def pause(self):
         self._pause_flag = not self._pause_flag

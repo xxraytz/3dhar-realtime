@@ -29,11 +29,21 @@ def send_email(video_path, time_fall, phone_number):
     print(subject)
 
     def send_msg(text):
-        token = "5624864341:AAFQd3nWe8uinePbq3MKMPfbrdi7yDB5ax8"
-        chat_id = "@public_link_a"
-        url_req = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + text
-        results = requests.get(url_req)
-        print(results.json())
+        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+        if not token or not chat_id:
+            logger.info("Telegram notifications are disabled.")
+            return
+        try:
+            response = requests.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": text}, timeout=10,
+            )
+            if not response.ok:
+                logger.warning("Telegram notification failed (HTTP %s).", response.status_code)
+        except requests.RequestException:
+            # Exception URLs can contain the bot token; do not log them.
+            logger.warning("Telegram notification request failed.")
 
     send_msg(f"❗️Внимание! Произошло падение\nВремя:{time_fall}\n")
 

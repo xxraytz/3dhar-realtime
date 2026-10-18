@@ -1,4 +1,6 @@
 import datetime
+import os
+from pathlib import Path
 import time
 
 import numpy as np
@@ -91,10 +93,11 @@ def debug_calc_measure(x_test, ms, sko, covs, center, class_names):
 def calc_measure_svc(id, x_test, one_class_clf, svm_clf):
     res = []
     for i, x in enumerate(x_test):
-        with open(f'document_id_results/file-result-{datetime.datetime.now().date()}.txt', 'a+') as handle:
-            handle.write(
-                f'{id}: {datetime.datetime.now().time().strftime("%H-%M-%S")},{svm_clf.predict(x.reshape(1, -1))[0]},{",".join(np.round(x, 6).astype(str))}\n'
-            )
+        if os.environ.get('IDENTIFICATION_LOG_DIR'):
+            directory = Path(os.environ['IDENTIFICATION_LOG_DIR'])
+            directory.mkdir(parents=True, exist_ok=True)
+            with (directory / f'file-result-{datetime.date.today()}.txt').open('a') as handle:
+                handle.write(f'{id},{svm_clf.predict(x.reshape(1, -1))[0]}\n')
         if one_class_clf.predict(x.reshape(1, -1))[0] == 1:
             clf_res = svm_clf.predict(x.reshape(1, -1))[0]
             res.append(clf_res)

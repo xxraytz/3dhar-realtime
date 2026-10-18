@@ -8,6 +8,7 @@ import numpy as np
 from core.skeleton_shifting import height_correction, align_on_the_floor, skeleton_overlay, basic_assembly_metric
 from core.skeleton_zero_view import skeleton_correction
 import pickle
+from core.config import asset_path
 from sklearn.metrics import pairwise_distances
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -42,14 +43,14 @@ class PersonIdentification:
         self.one_class_classifier = None
 
     def database_connect(self):
-        self.database = get_database(os.environ.get('database_path'))
+        self.database = get_database(asset_path('database_path'))
         self.database = [el[:, :-1] for el in self.database]
         self.database = height_correction(self.database, DATABASE_HEIGHT)
         self.database = align_on_the_floor(self.database)
         self.database = skeleton_overlay(self.database)
-        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/svm-new.pickle', 'rb') as handle:
+        with open(asset_path('svm_model_path'), 'rb') as handle:
             self.svm_classifier = pickle.load(handle)
-        with open('C:/Users/Egor/workspace/projects/python/person-skeleton-id/data/one-class-elliptic-c=0.13-sf=0.9.pickle', 'rb') as handle:
+        with open(asset_path('outlier_model_path'), 'rb') as handle:
             self.one_class_classifier = pickle.load(handle)
         self.reset_train_set()
 
@@ -65,13 +66,20 @@ class PersonIdentification:
         self.classes = np.unique(self.train_y)
 
     def start_monitoring(self):
+        self._tracking_ids = {}
         for i in range(0, self.__body_count):
             self.skeletons[f'skeleton_{i:03d}'] = deque(maxlen=500)
 
     def append_frame(self, frame):
         for i, sk_ind in enumerate(frame):
             if sk_ind is not None:
+                tracking_id = getattr(sk_ind, 'tracking_id', None)
+                if self._tracking_ids.get(i) != tracking_id:
+                    self.skeletons[f'skeleton_{i:03d}'].clear()
+                self._tracking_ids[i] = tracking_id
                 self.skeletons[f'skeleton_{i:03d}'].append(sk_ind)
+            else:
+                self.skeletons[f'skeleton_{i:03d}'].clear()
 
     def get_person_id(self, mon_people=None):
         # print("New identification")
@@ -91,6 +99,8 @@ class PersonIdentification:
                 video = align_on_the_floor(video)
                 video = skeleton_overlay(video)
                 video = list(filter(lambda x: np.abs(x[4][0] - x[7][0]) > 0.130, video))
+                if len(video) < 100:
+                    continue
                 dm = basic_assembly_metric([self.database[i] for i in [4, 10, 11, 15, 28]], video)
                 test_x = div_profiles(dm)
                 # print(f'ID: {i}', flush=True)
@@ -105,7 +115,7 @@ class PersonIdentification:
         return ids, debug_ids, debug_one_class
 
     def get_people(self):
-        return np.unique(self.train_y)
+        return np.unique(self.train_y).tolist()
 
 
 # def get_person_id(cur, stored):
@@ -127,7 +137,7 @@ def div_profiles(dm):
 
 
 def get_profiles():
-    with open(os.environ.get("profiles_path"), "r+") as file:
+    with open(asset_path("profiles_path"), "r") as file:
         profiles = []
         profile_names = []
         file.readline()

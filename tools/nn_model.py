@@ -1,29 +1,26 @@
-import keras
-import tensorflow as tf
+"""Inference adapter for the bundled Keras 2 SavedModel."""
 import logging
-from os import environ
+import numpy as np
+from core.config import asset_path
 
-logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class Recognizer:
-    def __init__(self, ):
-        self.__set_model(environ.get('nn_model_path'))
-
-    def __set_model(self, path_to):
-        logger.info('Trying set the keras model...')
-        self.__nn_model: keras.Model = tf.keras.models.load_model(path_to)
-
-        adam = tf.keras.optimizers.Adam(learning_rate=0.001)
-        self.__nn_model.compile(
-            optimizer=adam,
-            loss=keras.losses.CategoricalCrossentropy(),
-            metrics=['accuracy']
-        )
-        logger.info('The model is set up')
+    def __init__(self):
+        import tensorflow as tf
+        path = asset_path("nn_model_path", "data/nn-model/data003")
+        if not (path / "saved_model.pb").is_file():
+            raise FileNotFoundError(f"TensorFlow SavedModel not found: {path}")
+        self.model = tf.keras.models.load_model(str(path), compile=False)
+        if self.model.input_shape != (None, 32, 32, 1) or self.model.output_shape != (None, 9):
+            raise ValueError("Expected a 32x32x1 HAR model with nine output classes.")
+        logger.info("Loaded HAR model from %s", path)
 
     def predict_actions(self, activity_map):
-        return self.__nn_model.predict(activity_map, verbose=0) if activity_map.shape == (1, 32, 32) else None
-
+        values = np.asarray(activity_map, dtype=np.float32)
+        if values.shape == (1, 32, 32):
+            values = values[..., None]
+        if values.shape != (1, 32, 32, 1) or not np.isfinite(values).all():
+            raise ValueError("Expected a finite activity map with shape (1, 32, 32, 1).")
+        return self.model(values, training=False).numpy()

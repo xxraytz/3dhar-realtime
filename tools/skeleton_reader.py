@@ -36,7 +36,7 @@ class SkeletonReader:
         return video if video else -1
 
     def __read_skeletal_sequence_default(self):
-        with open(self.video_path, 'r+') as file:
+        with open(self.video_path, 'r') as file:
             video = []
             for line in file:
                 if 'frame' in line.lower():
@@ -55,7 +55,7 @@ class SkeletonReader:
             return [el[:, :-1] for el in video]
 
     def __read_skeletal_sequence_default_2d(self):
-        with open(self.video_path, 'r+') as file:
+        with open(self.video_path, 'r') as file:
             video = []
             for line in file:
                 if 'frame' in line.lower():
@@ -85,7 +85,7 @@ class SkeletonReader:
             return list(skeleton_kinect.values())
 
     def __read_basic_assembly(self):
-        with open(self.video_path, 'r+') as file:
+        with open(self.video_path, 'r') as file:
             video = []
             for line in file:
                 if 'frame' in line.lower():

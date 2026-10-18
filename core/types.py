@@ -184,7 +184,7 @@ class KinectFrameReader:
     def get_color_space_joints(self, index, usable_indexes):
         joints = []
         for joint in self.kinect.body_joints_to_color_space(self.get_body(index).joints):
-            if math.isinf(joint.x) and math.isinf(joint.y):
+            if not (math.isfinite(joint.x) and math.isfinite(joint.y)):
                 joints.append([0, 0])
             else:
                 joints.append([int(joint.x), int(joint.y)])

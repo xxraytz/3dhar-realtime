@@ -66,6 +66,16 @@ class KinectEmulator:
         self.__exceed_points = [7, 11, 15, 19, 21, 22, 23, 24]
         self.__color_skeleton_frames = self.__get_color_body_frames()
         self.__skeleton_frames = self.__get_body_frames()
+        if not self.__skeleton_frames:
+            raise ValueError('Recording has no skeleton frames.')
+        self._capture = cv2.VideoCapture(self.__color_data)
+        if not self._capture.isOpened():
+            self._capture.release()
+            raise FileNotFoundError(f'Cannot open recording video: {self.__color_data}')
+        self.color_frame_desc = ColorFrameDescription(
+            int(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
         self.__color_frames_gen = self.__color_frames_generator()
         self.__current_color_frame = None
 
@@ -78,7 +88,7 @@ class KinectEmulator:
                     for i in range(17):
                         skeleton.append(
                             Joint(*[
-                                float(el) for el in file.readline().split(' ')[:4]
+                                float(el) for el in file.readline().split()[:4]
                             ])
                         )
                     for i in self.__exceed_points:
@@ -95,7 +105,7 @@ class KinectEmulator:
                     for i in range(17):
                         skeleton.append(
                             ScreenJoint(*[
-                                float(el) for el in file.readline().split(' ')[4:]
+                                float(el) for el in file.readline().split()[4:]
                             ])
                         )
                     for i in self.__exceed_points:
@@ -118,18 +128,16 @@ class KinectEmulator:
             ] * self.max_body_count
 
     def __color_frames_generator(self):
-        cap = cv2.VideoCapture(self.__color_data)
         while True:
-            ret, frame = cap.read()
-            if ret:
-                self.__frame_number += 1
-                yield frame
-            else:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                print('Camera to zero')
+            ret, frame = self._capture.read()
+            if not ret or self.__frame_number + 1 >= len(self.__skeleton_frames):
+                self._capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 self.__frame_number = -1
-                continue
-        cap.release()
+                ret, frame = self._capture.read()
+                if not ret:
+                    raise ValueError('Recording contains no decodable video frames.')
+            self.__frame_number += 1
+            yield frame
 
     @staticmethod
     def has_new_body_frame():
@@ -157,4 +165,5 @@ class KinectEmulator:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self.__color_frames_gen.close()
+        self._capture.release()

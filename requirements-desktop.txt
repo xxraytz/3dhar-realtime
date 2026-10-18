@@ -1,0 +1,15 @@
+-c constraints-desktop.txt
+# Direct desktop dependencies from the historical Pipfile.lock.
+# Python 3.8.10 x64 on Windows is the original target.
+numpy==1.23.4
+scipy==1.10.1
+opencv-python==4.9.0.80
+PyQt6==6.6.1
+PyQt6-Qt6==6.6.3
+scikit-learn==1.3.2
+tensorflow==2.13.0
+keras==2.13.1
+requests==2.31.0
+backoff==2.2.1
+comtypes==1.1.11; sys_platform == "win32"
+pykinect2 @ git+https://github.com/xxraytz/PyKinect2.git@c20559b67646c4d19b9bce0d5227f888a1512151 ; sys_platform == "win32"

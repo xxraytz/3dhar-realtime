@@ -1,15 +1,16 @@
 import argparse
-import json
+import os
+import queue
+from core.config import ROOT, load_config
 import logging
 from core.mainthread import MainThread, VideoStreamingThread, PeopleMonitoringThread, HARThread
 import cv2
 import numpy as np
 
 import sys
-from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton, QToolBar, QMainWindow, QStatusBar, \
-    QScrollArea, QListView, QMessageBox, QGridLayout
-from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup, \
-    QResizeEvent
+from PyQt6.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QPushButton, QMainWindow, QStatusBar, \
+    QScrollArea, QListView, QMessageBox
+from PyQt6.QtGui import QPixmap, QColor, QImage, QCloseEvent, QAction, QStandardItemModel, QStandardItem, QActionGroup
 from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QTimer
 
 logging.basicConfig(format='[%(asctime)s][%(levelname)s][%(name)s] %(message)s', datefmt='%H:%M:%S')
@@ -17,38 +18,27 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def get_config(args):
-    with open(args.config, 'r') as stream:
-        config = json.load(stream)
-        EXCLUDE_SKELETON_DISTANCES = config["EXCLUDE_SKELETON_DISTANCES"]
-        SKELETON_COLORS = config["SKELETON_COLORS"]
-        USABLE_SK_JOINTS = config["SKELETON_USABLE_JOINTS_NUMBER"]
-        USABLE_SK_JOINTS = dict(
-            sorted(
-                USABLE_SK_JOINTS.items(),
-                key=lambda x: x[1]
-            )
-        )
-        SKELETON_LINES = config["SKELETON_LINES"]
-        SKELETON_POINTS_COUNT = config["SKELETON_POINTS_COUNT"]
-        SKELETON_HEIGHTS_CORRECTION = config["SKELETON_HEIGHTS_CORRECTION"]
-    config = args.config
-    return config
-
-
 def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='config.json', help='JSON config')
-    parser.add_argument('-v', default=1, help='Kinect data visualisation')
-    return parser.parse_args()
+    parser = argparse.ArgumentParser(description='Skeleton-based activity recognition with Kinect v2.')
+    parser.add_argument('--config', default=str(ROOT / 'config.example.json'))
+    parser.add_argument('--source', choices=['kinect', 'recording'], default='kinect')
+    parser.add_argument('--recording', help='Scene directory containing Body/ and Color/.')
+    parser.add_argument('--identify', action='store_true', help='Enable identification using private local assets.')
+    args = parser.parse_args()
+    if args.source == 'recording' and not (args.recording or os.environ.get('emulator_base_path')):
+        parser.error('--source recording requires --recording or emulator_base_path')
+    return args
 
 
 class App(QWidget):
     set_people_list = pyqtSignal(list)
 
-    def __init__(self, config):
+    def __init__(self, args):
         super().__init__()
-        self.conf = config
+        self.conf = args.config
+        load_config(self.conf)
+        self.identify = args.identify
+        self._closing = False
         self.size = (1280, 800)
         self.__people_list = None
         self.image_label = QLabel(self)
@@ -58,52 +48,68 @@ class App(QWidget):
         self.text_label.setStyleSheet("background-color:white; color:red; font-size:60px; font-weight:bold;"
                                       "border: 1px")
         self.timer = QTimer(self)
-        self.timer.setSingleShot(False)
+        self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.hide_label)
 
         self.pause_button = QPushButton()
-        self.pause_button.setText('pause')
+        self.pause_button.setText('Pause / resume')
         self.pause_button.setFixedWidth(200)
         self.pause_button.clicked.connect(self.pause)
 
-        self.grid_results = QWidget()
-
-        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('Id1'), 0, 1)
-        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('Id2'), 0, 2)
-        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('OS'), 1, 0)
-        # self.grid_results_layout.addWidget(self.__styled_label_for_grid('Egor'), 2, 0)
-        #
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.image_label)
         self.main_layout.addWidget(self.text_label)
         self.main_layout.addWidget(self.pause_button)
-        self.main_layout.addWidget(self.grid_results)
 
         self.setLayout(self.main_layout, )
         grey_image = QPixmap(*self.size)
         grey_image.fill(QColor('grey'))
         self.image_label.setPixmap(grey_image)
 
-        self.main_thread = MainThread(self.conf)
+        self.main_thread = MainThread(self.conf, args.source, args.recording)
         self.video_streaming_thread = VideoStreamingThread(self.conf)
         self.people_monitoring_thread = PeopleMonitoringThread(self.conf, 6)
         self.human_action_recognition_thread = HARThread(self.conf, 6)
 
         self.video_streaming_thread.video_frame_sending.connect(self.update_image)
         self.people_monitoring_thread.send_calculated_indexes.connect(self.set_people_indexes)
-        self.people_monitoring_thread.send_debug_info.connect(self.debug_get_grid)
+        # Identity diagnostics are available from the worker; keep the main UI focused.
         self.people_monitoring_thread.send_people_information.connect(self.update_people_identification_list)
         self.main_thread.video_frame_generate.connect(self.video_streaming_append)
         self.main_thread.video_frame_generate.connect(self.human_action_recognition)
-        self.main_thread.video_frame_generate.connect(self.monitoring_append)
+        if self.identify:
+            self.main_thread.video_frame_generate.connect(self.monitoring_append)
         self.human_action_recognition_thread.send_action_info.connect(self.set_people_actions)
-        # self.main_thread.video_frame_generate.connect(self.people_monitoring_thread.queue.put)
+        for worker in self.workers():
+            worker.failed.connect(self.on_worker_error)
+
+    def workers(self):
+        workers = [self.main_thread, self.video_streaming_thread, self.human_action_recognition_thread]
+        if self.identify:
+            workers.append(self.people_monitoring_thread)
+        return workers
+
+    @pyqtSlot(str)
+    def on_worker_error(self, message):
+        if not self._closing:
+            self.shutdown()
+            QMessageBox.critical(self, 'Capture stopped', message)
+
+    def shutdown(self):
+        self._closing = True
+        self.timer.stop()
+        for worker in self.workers():
+            worker.requestInterruption()
+        for worker in self.workers():
+            worker.wait()
 
     @staticmethod
-    def __styled_label_for_grid(text):
-        label = QLabel(text)
-        label.setStyleSheet(" color:black; font-size:20px")
-        return label
+    def enqueue(frames, frame):
+        try:
+            frames.put_nowait(frame)
+        except queue.Full:
+            pass
+
 
     def hide_label(self):
         self.text_label.setText('')
@@ -113,12 +119,12 @@ class App(QWidget):
         self.timer.start(1300)
 
     def start(self):
-        self.main_thread.start()
-        self.video_streaming_thread.start()
-        self.people_monitoring_thread.database_connect()
-        self.people_monitoring_thread.start()
+        # Validate assets before capture starts, so failures do not strand workers.
         self.human_action_recognition_thread.database_connect()
-        self.human_action_recognition_thread.start()
+        if self.identify:
+            self.people_monitoring_thread.database_connect()
+        for worker in self.workers():
+            worker.start()
 
     @pyqtSlot(list)
     def set_monitoring_people_list(self, people):
@@ -130,79 +136,30 @@ class App(QWidget):
 
     @pyqtSlot(object)
     def human_action_recognition(self, image):
-        if not self.human_action_recognition_thread.is_busy():
-            self.human_action_recognition_thread.q_skeletons.put(image)
-        ...
+        if not self._closing and not self.human_action_recognition_thread.is_busy():
+            self.enqueue(self.human_action_recognition_thread.q_skeletons, image)
 
     @pyqtSlot(object)
     def monitoring_append(self, image):
-        if not self.people_monitoring_thread.is_busy():
-            self.people_monitoring_thread.queue.put(image)
+        if not self._closing and not self.people_monitoring_thread.is_busy():
+            self.enqueue(self.people_monitoring_thread.queue, image)
 
     @pyqtSlot(object)
     def video_streaming_append(self, image):
-        if self.video_streaming_thread.queue.empty():
-            self.video_streaming_thread.queue.put(image)
-
-    @pyqtSlot(dict, dict)
-    def debug_get_grid(self, info: dict, info_one_class: dict):
-        if self.__people_list and info and info_one_class:
-            people_number = len(self.__people_list)
-            grid_info = np.asarray(self.__people_list).reshape(-1, 1)
-            indexes = list(info.keys())
-            header = ["", *indexes]
-            for i in indexes:
-                try:
-                    clf_res = info[i]
-                    if not clf_res:
-                        continue
-                    parts_number = len(clf_res)
-                    values = np.asarray([res[name] for name in self.__people_list for res in clf_res])
-                    values = values.reshape([people_number, parts_number])
-                    values = ["\n".join(value.astype(str)) for value in values]
-                    grid_info = np.hstack((grid_info, np.asarray(values).reshape(-1, 1)))
-                except IndexError:
-                    logger.info('No more people')
-            print(grid_info, header, flush=True)
-            print(grid_info.shape, len(header), flush=True)
-            print(info_one_class, flush=True)
-            if grid_info.shape[1] != len(header):
-                return
-            grid_info = np.vstack((header, grid_info))
-            try:
-                grid_info = np.vstack((grid_info, np.asarray(['one-class'] + ['{:f}'.format(np.max(np.round(info_one_class[id][0][0], 7))) for id in indexes])))
-            except NotImplementedError:
-                return
-            self.debug_set_grid_to_interface(grid_info)
-
-    def debug_set_grid_to_interface(self, grid):
-        grid_results_layout = QGridLayout()
-        for i in range(grid.shape[0]):
-            for j in range(grid.shape[1]):
-                grid_results_layout.addWidget(self.__styled_label_for_grid(f'{grid[i, j]}'), i, j)
-        self.main_layout.removeWidget(self.grid_results)
-        self.grid_results = QWidget()
-        self.grid_results.setLayout(grid_results_layout)
-        self.grid_results.adjustSize()
-        self.main_layout.addWidget(self.grid_results)
-        # self.grid_results.update()
-        self.main_layout.update()
-        self.update()
+        if not self._closing:
+            self.enqueue(self.video_streaming_thread.queue, image)
 
     @pyqtSlot(list)
     def set_people_actions(self, classes):
         self.video_streaming_thread.set_classes(classes)
-        self.human_action_recognition_thread.stop()
-        # ...
 
     @pyqtSlot(list)
     def set_people_indexes(self, people_ids):
         self.show_label()
         self.video_streaming_thread.set_indexes([f'{x}' for x in people_ids])
-        self.people_monitoring_thread.stop()
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        self.main_thread.stop()
+        self.shutdown()
         event.accept()
 
     def convert_cv_qt(self, cv_img):
@@ -285,23 +242,13 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.setGeometry(100, 100, 0, 0)
         self.people_window = PeopleListWindow()
-        self.setWindowTitle("OpenCV video demo")
-        self.main_widget = App(get_config(args))
+        self.setWindowTitle("Skeleton Activity Recognition")
+        self.main_widget = App(args)
         self.setCentralWidget(self.main_widget)
-        toolbar = QToolBar("Mine Main Menu")
-        self.addToolBar(toolbar)
-
-        button_action = QAction('MenuButton', self)
-        button_action.setStatusTip('This is my button')
-        button_action.triggered.connect(self.on_click_event)
-        toolbar.addAction(button_action)
-
         self.setStatusBar(QStatusBar(self))
 
         menu = self.menuBar()
         menu.setNativeMenuBar(True)
-        file_menu = menu.addMenu("&File")
-        file_menu.addAction(button_action)
 
         setting_menu = menu.addMenu("&Settings")
         change_video_mode_action = setting_menu.addMenu('&Video mode')
@@ -310,6 +257,7 @@ class MainWindow(QMainWindow):
         choose_people_to_id.setStatusTip('Choose more than one people to identify')
         choose_people_to_id.triggered.connect(self.on_choose_people)
 
+        choose_people_to_id.setEnabled(args.identify)
         setting_menu.addAction(choose_people_to_id)
 
         video_mode_group = QActionGroup(self, )
@@ -334,9 +282,6 @@ class MainWindow(QMainWindow):
         change_video_mode_action.addAction(self.video_mode_skeletal)
         self.main_widget.start()
 
-    def resizeEvent(self, a0: QResizeEvent) -> None:
-        ...
-
     def set_video_mode_real(self):
         self.main_widget.video_streaming_thread.set_real_video_mode()
 
@@ -351,12 +296,10 @@ class MainWindow(QMainWindow):
         self.people_window.show()
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        self.main_widget.close()
+        self.main_widget.shutdown()
+        self.people_window.close()
+        event.accept()
 
-    def on_click_event(self, s):
-        logger.info(f'Click some of button {s}')
-        self.main_widget.update()
-        self.update()
 
 
 if __name__ == '__main__':

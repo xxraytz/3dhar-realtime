@@ -23,13 +23,12 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
     skeletons = frame.skeleton_frames
     if video_mode is VideoMode.REAL:
         color_image = frame.color_frame
-        # if not color_image:
-        #     color_image = saved_color_image
-        if len(color_image.shape) > 2:
-            color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 3))
+        if color_image.ndim == 1:
+            color_image = color_image.reshape(frame.get_color_height(), frame.get_color_width(), 4)
+        if color_image.shape[-1] == 4:
+            color_image = cv2.cvtColor(color_image, cv2.COLOR_BGRA2BGR)
         else:
-            color_image = np.reshape(color_image, (frame.get_color_height(), frame.get_color_width(), 4))
-        color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2RGBA)
+            color_image = color_image.copy()
     elif video_mode is VideoMode.SKELETAL:
         color_image = saved_color_image.copy()
     else:
@@ -72,7 +71,7 @@ def generate_image(saved_color_image, frame, video_mode, skeleton_lines, indexes
 
 
 def paint(frame, config, video_mode, indexes, classes):
-    saved_color_image = cv2.imread('_color_image.png')
+    saved_color_image = np.full((frame.get_color_height(), frame.get_color_width(), 3), 245, dtype=np.uint8)
     with open(config, 'r') as stream:
         config = json.load(stream)
         skeleton_lines = config["SKELETON_LINES"]
